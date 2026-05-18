@@ -1,12 +1,14 @@
 import { useEffect, useRef, useState } from 'react'
 
-export const useCamera = () => {
+export const useCamera = (enabled = true) => {
   const videoRef = useRef(null)
   const streamRef = useRef(null)
   const [error, setError] = useState('')
   const [ready, setReady] = useState(false)
 
   useEffect(() => {
+    if (!enabled) return undefined
+
     let mounted = true
 
     const startCamera = async () => {
@@ -32,8 +34,10 @@ export const useCamera = () => {
     return () => {
       mounted = false
       streamRef.current?.getTracks().forEach((track) => track.stop())
+      streamRef.current = null
+      setReady(false)
     }
-  }, [])
+  }, [enabled])
 
   return { videoRef, ready, error }
 }
