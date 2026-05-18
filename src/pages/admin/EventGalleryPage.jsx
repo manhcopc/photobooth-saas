@@ -1,44 +1,19 @@
 import { Download } from 'lucide-react'
-import { useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { getFinalImages } from '../../store/booth'
 import { getEventBySlug } from '../../store/events'
 
 export function EventGalleryPage() {
   const { slug = 'pink-party' } = useParams()
-  const [event, setEvent] = useState(null)
-  const [images, setImages] = useState([])
-  const [loading, setLoading] = useState(true)
-
-  useEffect(() => {
-    let mounted = true
-
-    const loadGallery = async () => {
-      const storedEvent = await getEventBySlug(slug)
-      const storedImages = await getFinalImages(storedEvent.slug)
-      if (!mounted) return
-      setEvent(storedEvent)
-      setImages(Array.isArray(storedImages) ? storedImages : [])
-      setLoading(false)
-    }
-
-    loadGallery()
-
-    return () => {
-      mounted = false
-    }
-  }, [slug])
-
-  if (loading || !event) {
-    return <div className="rounded-3xl bg-white p-6 font-bold text-slate-500 shadow-sm">Đang tải gallery...</div>
-  }
+  const event = getEventBySlug(slug)
+  const images = getFinalImages(event.slug)
 
   return (
     <section>
       <div className="mb-5 flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
         <div>
           <h1 className="text-3xl font-black text-slate-950">Gallery: {event.name}</h1>
-          <p className="mt-2 text-slate-500">{images.length} ảnh final trong IndexedDB.</p>
+          <p className="mt-2 text-slate-500">{images.length} ảnh final trong localStorage.</p>
         </div>
         <Link className="rounded-2xl bg-purple-50 px-5 py-3 font-bold text-purple-700" to={`/admin/events/${event.slug}`}>Quay lại chi tiết</Link>
       </div>
@@ -53,7 +28,7 @@ export function EventGalleryPage() {
               <img alt="Ảnh final trong gallery" className="aspect-[2/3] w-full rounded-2xl object-cover" src={image.dataUrl} />
               <div className="mt-3 flex items-center justify-between gap-2 text-xs text-slate-500">
                 <span>{new Date(image.createdAt).toLocaleString('vi-VN')}</span>
-                <a className="rounded-xl bg-purple-50 p-2 text-purple-700" download={`${image.id}.jpg`} href={image.dataUrl}><Download size={16} /></a>
+                <a className="rounded-xl bg-purple-50 p-2 text-purple-700" download={`${image.id}.png`} href={image.dataUrl}><Download size={16} /></a>
               </div>
             </article>
           ))}

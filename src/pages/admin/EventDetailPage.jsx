@@ -1,40 +1,14 @@
 import { ExternalLink, Images } from 'lucide-react'
 import { QRCodeCanvas } from 'qrcode.react'
-import { useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { getFinalImages } from '../../store/booth'
 import { getEventBySlug } from '../../store/events'
 
 export function EventDetailPage() {
   const { slug = 'pink-party' } = useParams()
-  const [event, setEvent] = useState(null)
-  const [images, setImages] = useState([])
-  const [loading, setLoading] = useState(true)
-
-  useEffect(() => {
-    let mounted = true
-
-    const loadEvent = async () => {
-      const storedEvent = await getEventBySlug(slug)
-      const storedImages = await getFinalImages(storedEvent.slug)
-      if (!mounted) return
-      setEvent(storedEvent)
-      setImages(Array.isArray(storedImages) ? storedImages : [])
-      setLoading(false)
-    }
-
-    loadEvent()
-
-    return () => {
-      mounted = false
-    }
-  }, [slug])
-
-  if (loading || !event) {
-    return <div className="rounded-3xl bg-white p-6 font-bold text-slate-500 shadow-sm">Đang tải event...</div>
-  }
-
+  const event = getEventBySlug(slug)
   const boothUrl = `${window.location.origin}/booth/${event.slug}`
+  const images = getFinalImages(event.slug)
 
   return (
     <section className="grid gap-6 lg:grid-cols-[1fr_360px]">

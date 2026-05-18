@@ -1,5 +1,3 @@
-import { FINAL_IMAGE_QUALITY, FINAL_IMAGE_TYPE } from './images'
-
 const loadImage = (src) =>
   new Promise((resolve, reject) => {
     const image = new Image()
@@ -49,5 +47,5 @@ export const composeFinalImage = async (photos, frameConfig) => {
   const frame = await loadImage(frameConfig.overlaySrc)
   context.drawImage(frame, 0, 0, canvas.width, canvas.height)
 
-  return canvas.toDataURL(FINAL_IMAGE_TYPE, FINAL_IMAGE_QUALITY)
+  return canvas.toDataURL('image/png')
 }
