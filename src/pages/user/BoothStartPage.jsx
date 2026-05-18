@@ -1,4 +1,5 @@
-import { useParams } from 'react-router-dom'
+import { useEffect, useState } from 'react'
+import { useNavigate, useParams } from 'react-router-dom'
 import { Button } from '../../components/common/Button'
 import { ProgressSteps } from '../../components/common/ProgressSteps'
 import { BoothHeader } from '../../components/booth/BoothHeader'
@@ -7,11 +8,36 @@ import { getEventBySlug } from '../../store/events'
 
 export function BoothStartPage() {
   const { slug = 'pink-party' } = useParams()
-  const event = getEventBySlug(slug)
+  const navigate = useNavigate()
+  const [event, setEvent] = useState(null)
+  const [loading, setLoading] = useState(true)
 
-  const prepareSession = () => {
-    clearSession()
-    setActiveEventSlug(event.slug)
+  useEffect(() => {
+    let mounted = true
+
+    const loadEvent = async () => {
+      const storedEvent = await getEventBySlug(slug)
+      if (!mounted) return
+      setEvent(storedEvent)
+      setLoading(false)
+    }
+
+    loadEvent()
+
+    return () => {
+      mounted = false
+    }
+  }, [slug])
+
+  const prepareSession = async () => {
+    if (!event) return
+    await clearSession()
+    await setActiveEventSlug(event.slug)
+    navigate(`/booth/${event.slug}/capture`)
+  }
+
+  if (loading || !event) {
+    return <div className="grid min-h-svh place-items-center p-6 font-bold text-purple-700 md:min-h-[820px]">Đang tải sự kiện...</div>
   }
 
   return (
@@ -27,7 +53,7 @@ export function BoothStartPage() {
             <li>3. Bạn chọn đúng 3 ảnh để ghép frame.</li>
           </ol>
         </div>
-        <Button className="mt-8 w-full" onClick={prepareSession} to={`/booth/${event.slug}/capture`}>Mở camera</Button>
+        <Button className="mt-8 w-full" onClick={prepareSession}>Mở camera</Button>
       </section>
     </div>
   )
