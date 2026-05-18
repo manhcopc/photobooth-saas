@@ -1,22 +1,31 @@
-const safeParse = (value, fallback) => {
+import localforage from 'localforage';
+
+export const readStorage = async (key, fallback) => {
+  if (typeof window === 'undefined') return fallback;
   try {
-    return value ? JSON.parse(value) : fallback
-  } catch {
-    return fallback
+    const value = await localforage.getItem(key);
+    // localforage sẽ trả về null nếu key chưa từng được lưu
+    return value !== null ? value : fallback;
+  } catch (err) {
+    console.error("Lỗi khi đọc storage:", err);
+    return fallback;
   }
 }
 
-export const readStorage = (key, fallback) => {
-  if (typeof window === 'undefined') return fallback
-  return safeParse(window.localStorage.getItem(key), fallback)
+export const writeStorage = async (key, value) => {
+  if (typeof window === 'undefined') return;
+  try {
+    await localforage.setItem(key, value); 
+  } catch (err) {
+    console.error("Lỗi khi lưu vào storage:", err);
+  }
 }
 
-export const writeStorage = (key, value) => {
-  if (typeof window === 'undefined') return
-  window.localStorage.setItem(key, JSON.stringify(value))
-}
-
-export const removeStorage = (key) => {
-  if (typeof window === 'undefined') return
-  window.localStorage.removeItem(key)
+export const removeStorage = async (key) => {
+  if (typeof window === 'undefined') return;
+  try {
+    await localforage.removeItem(key);
+  } catch (err) {
+    console.error("Lỗi khi xóa storage:", err);
+  }
 }
