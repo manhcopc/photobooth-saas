@@ -1,10 +1,13 @@
+import { getEnv, isSupabaseEnvConfigured, validateEnv } from '../utils/env'
+
 export const SUPABASE_FINAL_IMAGES_BUCKET = 'photobooth-final-images'
 export const FINAL_OUTPUTS_TABLE = 'final_outputs'
 export const SUPABASE_FRAMES_BUCKET = 'photobooth-frames'
 
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL?.replace(/\/$/, '') || ''
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || ''
+const { supabaseUrl, supabaseAnonKey } = getEnv()
 let authToken = ''
+
+validateEnv()
 
 const assertSupabaseConfig = () => {
   if (!supabaseUrl || !supabaseAnonKey) {
@@ -36,7 +39,7 @@ const parseResponse = async (response) => {
   return payload
 }
 
-export const isSupabaseConfigured = () => Boolean(supabaseUrl && supabaseAnonKey)
+export const isSupabaseConfigured = () => isSupabaseEnvConfigured()
 
 export const setSupabaseAuthToken = (token = '') => {
   authToken = token
