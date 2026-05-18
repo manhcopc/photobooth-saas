@@ -1,33 +1,48 @@
 import { Download, WandSparkles } from 'lucide-react'
 import { useEffect, useState } from 'react'
-import { useNavigate, useParams } from 'react-router-dom'
+import { useNavigate } from 'react-router-dom'
 import { ProgressSteps } from '../../components/common/ProgressSteps'
 import { Button } from '../../components/common/Button'
+import { useCurrentEvent } from '../../hooks/useCurrentEvent'
 import { composeFinalImage } from '../../utils/canvas'
-import { getSelectedPhotos, saveFinalImage } from '../../store/booth'
-import { getEventBySlug } from '../../store/events'
+import { getActiveSession, getSelectedPhotos } from '../../services/photoStorage'
+import { useUploadQueue } from '../../hooks/useUploadQueue'
+import { enqueueFinalOutput } from '../../services/uploadQueueService'
+import { EventNotFoundPage } from './EventNotFoundPage'
 
 export function PreviewPage() {
-  const { slug = 'pink-party' } = useParams()
   const navigate = useNavigate()
+  const { event, loading: eventLoading } = useCurrentEvent()
   const [finalImage, setFinalImage] = useState('')
+  const [sessionId, setSessionId] = useState(null)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
+  const [uploadStatus, setUploadStatus] = useState('idle')
+  const [uploadError, setUploadError] = useState('')
+  const [queuedOutputId, setQueuedOutputId] = useState(null)
+  const { processQueue, retry } = useUploadQueue({ eventId: event?.id })
 
   useEffect(() => {
+    if (!event) return
     let mounted = true
 
     const composePreview = async () => {
-      const [photos, event] = await Promise.all([getSelectedPhotos(), getEventBySlug(slug)])
-      const safePhotos = Array.isArray(photos) ? photos : []
-
-      if (safePhotos.length !== 3) {
-        if (mounted) navigate(`/booth/${slug}/select`)
+      const activeSessionId = await getActiveSession(event.id)
+      if (!activeSessionId) {
+        if (mounted) navigate(`/e/${event.slug}`)
         return
       }
 
-      const dataUrl = await composeFinalImage(safePhotos, event.frameConfig)
+      const photos = await getSelectedPhotos({ eventId: event.id, sessionId: activeSessionId })
+
+      if (photos.length !== 3) {
+        if (mounted) navigate(`/e/${event.slug}/select`)
+        return
+      }
+
+      const dataUrl = await composeFinalImage(photos, event.layoutConfig)
       if (!mounted) return
+      setSessionId(activeSessionId)
       setFinalImage(dataUrl)
       setLoading(false)
     }
@@ -37,13 +52,43 @@ export function PreviewPage() {
     return () => {
       mounted = false
     }
-  }, [navigate, slug])
+  }, [event, navigate])
 
   const finish = async () => {
     setSaving(true)
-    await saveFinalImage({ eventSlug: slug, dataUrl: finalImage })
-    navigate(`/booth/${slug}/success`)
+    setUploadStatus('uploading')
+    setUploadError('')
+    const queuedOutput = await enqueueFinalOutput({ event, sessionId, imageDataUrl: finalImage })
+    setQueuedOutputId(queuedOutput.id)
+    processQueue()
+    setSaving(false)
+    window.setTimeout(() => navigate(`/e/${event.slug}/success`), 350)
   }
+
+  const retryUpload = async () => {
+    if (!queuedOutputId) return
+    setSaving(true)
+    setUploadStatus('uploading')
+    setUploadError('')
+    const result = await retry(queuedOutputId)
+    setSaving(false)
+
+    if (result.status === 'success') {
+      setUploadStatus('success')
+      setUploadError('')
+      window.setTimeout(() => navigate(`/e/${event.slug}/success`), 350)
+      return
+    }
+
+    setUploadStatus('failed')
+    setUploadError(result.errorMessage || 'Upload thất bại. Ảnh đã được giữ trong queue để thử lại.')
+  }
+
+  if (eventLoading) {
+    return <div className="grid min-h-svh place-items-center p-6 font-bold text-purple-700 md:min-h-[820px]">Đang tải sự kiện...</div>
+  }
+
+  if (!event) return <EventNotFoundPage />
 
   return (
     <div className="min-h-svh md:min-h-[820px]">
@@ -58,7 +103,18 @@ export function PreviewPage() {
           <a className={`inline-flex min-h-12 items-center justify-center rounded-2xl bg-white px-6 py-3 text-base font-bold text-purple-700 ring-1 ring-purple-100 ${!finalImage ? 'pointer-events-none opacity-50' : ''}`} download="photobooth.jpg" href={finalImage || '#'}>
             <Download className="mr-2" size={18} /> Tải ảnh xuống
           </a>
-          <Button disabled={!finalImage || saving} onClick={finish}>{saving ? 'Đang lưu...' : 'Hoàn tất'}</Button>
+          {uploadStatus !== 'idle' ? (
+            <div className="rounded-2xl bg-purple-50 p-3 text-sm font-bold text-purple-700">
+              {uploadStatus === 'uploading' ? 'uploading · Ảnh đã được đưa vào queue và đang đồng bộ...' : null}
+              {uploadStatus === 'success' ? 'success · Upload thành công!' : null}
+              {uploadStatus === 'failed' ? `failed · ${uploadError}` : null}
+            </div>
+          ) : null}
+          {uploadStatus === 'failed' ? (
+            <Button disabled={saving || !queuedOutputId} onClick={retryUpload} variant="secondary">{saving ? 'Đang retry...' : 'Retry upload'}</Button>
+          ) : (
+            <Button disabled={!finalImage || saving || uploadStatus === 'success'} onClick={finish}>{saving ? 'Đang upload...' : 'Hoàn tất'}</Button>
+          )}
         </div>
       </section>
     </div>
