@@ -1,19 +1,10 @@
 import { readStorage, removeStorage, writeStorage } from '../utils/storage'
 import { STORAGE_KEYS } from './keys'
 
-const MAX_GALLERY_ITEMS = 12
-
-const writeWithGalleryFallback = (key, value) => {
-  if (writeStorage(key, value)) return true
-
-  removeStorage(STORAGE_KEYS.finalImages)
-  return writeStorage(key, value)
-}
-
 export const getCaptures = () => readStorage(STORAGE_KEYS.captures, [])
-export const saveCaptures = (photos) => writeWithGalleryFallback(STORAGE_KEYS.captures, photos)
+export const saveCaptures = (photos) => writeStorage(STORAGE_KEYS.captures, photos)
 export const getSelectedPhotos = () => readStorage(STORAGE_KEYS.selectedPhotos, [])
-export const saveSelectedPhotos = (photos) => writeWithGalleryFallback(STORAGE_KEYS.selectedPhotos, photos)
+export const saveSelectedPhotos = (photos) => writeStorage(STORAGE_KEYS.selectedPhotos, photos)
 export const setActiveEventSlug = (slug) => writeStorage(STORAGE_KEYS.activeEventSlug, slug)
 export const getActiveEventSlug = () => readStorage(STORAGE_KEYS.activeEventSlug, 'pink-party')
 
@@ -30,11 +21,7 @@ export const saveFinalImage = ({ eventSlug, dataUrl }) => {
     dataUrl,
     createdAt: new Date().toISOString(),
   }
-  const nextImages = [image, ...images].slice(0, MAX_GALLERY_ITEMS)
-
-  if (writeStorage(STORAGE_KEYS.finalImages, nextImages)) return image
-
-  writeStorage(STORAGE_KEYS.finalImages, [image])
+  writeStorage(STORAGE_KEYS.finalImages, [image, ...images])
   return image
 }
 

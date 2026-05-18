@@ -11,20 +11,9 @@ export const readStorage = (key, fallback) => {
   return safeParse(window.localStorage.getItem(key), fallback)
 }
 
-export const isQuotaExceededError = (error) =>
-  error instanceof DOMException &&
-  (error.name === 'QuotaExceededError' || error.name === 'NS_ERROR_DOM_QUOTA_REACHED' || error.code === 22 || error.code === 1014)
-
 export const writeStorage = (key, value) => {
-  if (typeof window === 'undefined') return true
-
-  try {
-    window.localStorage.setItem(key, JSON.stringify(value))
-    return true
-  } catch (error) {
-    if (isQuotaExceededError(error)) return false
-    throw error
-  }
+  if (typeof window === 'undefined') return
+  window.localStorage.setItem(key, JSON.stringify(value))
 }
 
 export const removeStorage = (key) => {

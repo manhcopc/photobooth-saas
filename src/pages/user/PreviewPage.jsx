@@ -41,7 +41,7 @@ export function PreviewPage() {
           {loading ? <div className="grid aspect-[2/3] place-items-center text-purple-700"><WandSparkles className="animate-pulse" size={48} /></div> : <img alt="Ảnh photobooth cuối" className="aspect-[2/3] w-full rounded-[1.5rem] object-cover" src={finalImage} />}
         </div>
         <div className="mt-5 grid gap-3">
-          <a className={`inline-flex min-h-12 items-center justify-center rounded-2xl bg-white px-6 py-3 text-base font-bold text-purple-700 ring-1 ring-purple-100 ${!finalImage ? 'pointer-events-none opacity-50' : ''}`} download="photobooth.jpg" href={finalImage || '#'}>
+          <a className={`inline-flex min-h-12 items-center justify-center rounded-2xl bg-white px-6 py-3 text-base font-bold text-purple-700 ring-1 ring-purple-100 ${!finalImage ? 'pointer-events-none opacity-50' : ''}`} download="photobooth.png" href={finalImage || '#'}>
             <Download className="mr-2" size={18} /> Tải ảnh xuống
           </a>
           <Button disabled={!finalImage} onClick={finish}>Hoàn tất</Button>

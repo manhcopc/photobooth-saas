@@ -5,7 +5,6 @@ import { ProgressSteps } from '../../components/common/ProgressSteps'
 import { Button } from '../../components/common/Button'
 import { useCamera } from '../../hooks/useCamera'
 import { saveCaptures } from '../../store/booth'
-import { captureVideoFrame } from '../../utils/images'
 
 const TOTAL_PHOTOS = 6
 
@@ -20,7 +19,11 @@ export function CapturePage() {
 
   const capturePhoto = useCallback(() => {
     const video = videoRef.current
-    const dataUrl = captureVideoFrame(video)
+    const canvas = document.createElement('canvas')
+    canvas.width = video.videoWidth || 900
+    canvas.height = video.videoHeight || 1200
+    canvas.getContext('2d').drawImage(video, 0, 0, canvas.width, canvas.height)
+    const dataUrl = canvas.toDataURL('image/png')
     setPhotos((current) => {
       const next = [...current, dataUrl]
       saveCaptures(next)
