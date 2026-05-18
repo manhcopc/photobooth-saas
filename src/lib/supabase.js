@@ -5,6 +5,8 @@ const supabaseUrl = import.meta.env.VITE_SUPABASE_URL?.replace(/\/$/, '') || ''
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || ''
 
 const assertSupabaseConfig = () => {
+  console.debug('Supabase URL:', supabaseUrl);
+  console.debug('Supabase Anon Key:', supabaseAnonKey);
   if (!supabaseUrl || !supabaseAnonKey) {
     throw new Error('Thiếu VITE_SUPABASE_URL hoặc VITE_SUPABASE_ANON_KEY để upload ảnh lên Supabase.')
   }

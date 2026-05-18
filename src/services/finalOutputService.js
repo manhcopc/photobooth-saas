@@ -2,8 +2,7 @@ import { FINAL_OUTPUTS_TABLE, SUPABASE_FINAL_IMAGES_BUCKET, supabase } from '../
 import { STORAGE_KEYS } from '../store/keys'
 import { readStorage, writeStorage } from '../utils/storage'
 
-const DATA_URL_PATTERN = /^data:(?<mime>[-\w.]+\/[-\w+.]+);base64,(?<data>.*)$/
-const DECODE_CHUNK_SIZE = 1024 * 128
+// Bạn có thể xóa DATA_URL_PATTERN và DECODE_CHUNK_SIZE vì không cần thiết nữa
 
 const createId = (prefix) => `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
 
@@ -33,27 +32,6 @@ const upsertQueuedOutput = async (queuedOutput) => {
 const removeQueuedOutput = async (id) => {
   const queue = await getQueue()
   await saveQueue(queue.filter((item) => item.id !== id))
-}
-
-export const dataUrlToBlob = (dataUrl) => {
-  const match = dataUrl.match(DATA_URL_PATTERN)
-  if (!match?.groups) throw new Error('Final image không đúng định dạng dataURL.')
-
-  const mimeType = match.groups.mime
-  const base64 = match.groups.data
-  const byteCharacters = window.atob(base64)
-  const byteArrays = []
-
-  for (let offset = 0; offset < byteCharacters.length; offset += DECODE_CHUNK_SIZE) {
-    const slice = byteCharacters.slice(offset, offset + DECODE_CHUNK_SIZE)
-    const byteNumbers = new Array(slice.length)
-    for (let index = 0; index < slice.length; index += 1) {
-      byteNumbers[index] = slice.charCodeAt(index)
-    }
-    byteArrays.push(new Uint8Array(byteNumbers))
-  }
-
-  return new Blob(byteArrays, { type: mimeType })
 }
 
 const normalizeOutput = (output) => ({
@@ -87,7 +65,12 @@ const uploadQueuedOutput = async (queuedOutput) => {
   await upsertQueuedOutput(uploadingOutput)
 
   try {
-    const blob = dataUrlToBlob(uploadingOutput.dataUrl)
+    // 1. SỬ DỤNG FETCH ĐỂ CONVERT SANG NHỊ PHÂN SIÊU TỐC
+    const response = await fetch(uploadingOutput.dataUrl)
+    const blob = await response.blob()
+    // Chuyển blob thành ArrayBuffer - Chìa khóa để fix triệt để lỗi 400 Bad Request
+    const fileBuffer = await blob.arrayBuffer() 
+    
     const extension = getExtension(blob.type)
     const storagePath = uploadingOutput.storagePath || [
       sanitizePathSegment(uploadingOutput.eventId),
@@ -95,11 +78,18 @@ const uploadQueuedOutput = async (queuedOutput) => {
       `${sanitizePathSegment(uploadingOutput.id)}.${extension}`,
     ].join('/')
 
-    await supabase.storage.from(SUPABASE_FINAL_IMAGES_BUCKET).upload(storagePath, blob, {
-      contentType: blob.type,
-      upsert: true,
-    })
+    // 2. GỬI LÊN SUPABASE
+    const { error: uploadError } = await supabase.storage
+      .from(SUPABASE_FINAL_IMAGES_BUCKET)
+      .upload(storagePath, fileBuffer, {
+        contentType: blob.type || 'image/png',
+        upsert: true,
+      })
 
+    // Nếu có lỗi upload, văng ra để catch bắt lại
+    if (uploadError) throw uploadError
+
+    // 3. LẤY URL VÀ LƯU DATABASE
     const { data: publicUrlData } = supabase.storage.from(SUPABASE_FINAL_IMAGES_BUCKET).getPublicUrl(storagePath)
     const metadata = {
       id: uploadingOutput.id,
@@ -110,6 +100,7 @@ const uploadQueuedOutput = async (queuedOutput) => {
       upload_status: 'success',
       created_at: uploadingOutput.createdAt,
     }
+    
     const { data } = await supabase.from(FINAL_OUTPUTS_TABLE).insert(metadata)
     await removeQueuedOutput(uploadingOutput.id)
 
