@@ -14,7 +14,8 @@ const buildGalleryItems = ({ remoteImages, localOutputs, queueItems, remoteAvail
     id: image.id,
     eventId: image.eventId,
     sessionId: image.sessionId,
-    imageUrl: image.imageUrl,
+    imageUrl: image.thumbnailUrl || image.imageUrl,
+    finalUrl: image.imageUrl,
     downloadUrl: image.imageUrl,
     createdAt: image.createdAt,
     status: UPLOAD_QUEUE_STATUSES.success,
@@ -26,14 +27,19 @@ const buildGalleryItems = ({ remoteImages, localOutputs, queueItems, remoteAvail
       const queueItem = queueByLocalOutputId.get(output.id)
       const status = queueItem?.status || output.status || UPLOAD_QUEUE_STATUSES.pending
       const remoteImageUrl = queueItem?.remoteImageUrl || output.remoteImageUrl
-      const imageUrl = remoteImageUrl && status === UPLOAD_QUEUE_STATUSES.success ? remoteImageUrl : output.imageDataUrl
+      const remoteThumbnailUrl = queueItem?.remoteThumbnailUrl || output.remoteThumbnailUrl
+      const localThumbnailUrl = output.thumbnailBlob ? URL.createObjectURL(output.thumbnailBlob) : ''
+      const localFinalUrl = output.finalBlob ? URL.createObjectURL(output.finalBlob) : ''
+      const imageUrl = remoteThumbnailUrl || localThumbnailUrl || remoteImageUrl || localFinalUrl || output.imageDataUrl
+      const finalUrl = remoteImageUrl || localFinalUrl || output.imageDataUrl || imageUrl
 
       return {
         id: output.id,
         eventId: output.eventId,
         sessionId: output.sessionId,
         imageUrl,
-        downloadUrl: imageUrl,
+        finalUrl,
+        downloadUrl: finalUrl,
         createdAt: output.createdAt,
         status,
         errorMessage: queueItem?.errorMessage || output.errorMessage,
@@ -101,6 +107,15 @@ export function EventGalleryPage() {
     remoteAvailable,
   }), [localOutputs, queue, remoteAvailable, remoteImages])
 
+  useEffect(() => () => {
+    galleryItems.forEach((item) => {
+      if (item.source === 'local') {
+        if (item.imageUrl?.startsWith('blob:')) URL.revokeObjectURL(item.imageUrl)
+        if (item.finalUrl?.startsWith('blob:') && item.finalUrl !== item.imageUrl) URL.revokeObjectURL(item.finalUrl)
+      }
+    })
+  }, [galleryItems])
+
   const refreshGallery = async () => {
     setGalleryError('')
     const { storedEvent, storedImages, localOutputs: storedLocalOutputs, remoteAvailable: canReadRemote } = await loadGalleryData(slug, setGalleryError)
@@ -140,12 +155,12 @@ export function EventGalleryPage() {
           {galleryItems.map((image) => (
             <article className="overflow-hidden rounded-3xl bg-white p-3 shadow-sm ring-1 ring-slate-100" key={`${image.source}-${image.id}`}>
               <div className="relative">
-                <img alt="Ảnh final trong gallery" className="aspect-[2/3] w-full rounded-2xl object-cover" src={image.imageUrl} />
+                <a href={image.finalUrl} rel="noreferrer" target="_blank"><img alt="Ảnh final trong gallery" className="aspect-[2/3] w-full rounded-2xl object-cover" src={image.imageUrl} /></a>
                 <div className="absolute left-2 top-2"><SyncStatusBadge status={image.status} /></div>
               </div>
               <div className="mt-3 flex items-center justify-between gap-2 text-xs text-slate-500">
                 <span>{new Date(image.createdAt).toLocaleString('vi-VN')}</span>
-                <a className="rounded-xl bg-purple-50 p-2 text-purple-700" download={`${image.id}.png`} href={image.downloadUrl}><Download size={16} /></a>
+                <a className="rounded-xl bg-purple-50 p-2 text-purple-700" download={`${image.id}.webp`} href={image.downloadUrl}><Download size={16} /></a>
               </div>
               {image.status === UPLOAD_QUEUE_STATUSES.failed ? (
                 <div className="mt-3 rounded-2xl bg-red-50 p-3 text-xs font-bold text-red-700">

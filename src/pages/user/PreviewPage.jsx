@@ -4,7 +4,8 @@ import { useNavigate } from 'react-router-dom'
 import { ProgressSteps } from '../../components/common/ProgressSteps'
 import { Button } from '../../components/common/Button'
 import { useCurrentEvent } from '../../hooks/useCurrentEvent'
-import { composeFinalImage } from '../../utils/canvas'
+import { composeFinalCanvas } from '../../utils/canvas'
+import { optimizeFinalCanvas } from '../../utils/imageOptimization'
 import { getActiveSession, getSelectedPhotos } from '../../services/photoStorage'
 import { useUploadQueue } from '../../hooks/useUploadQueue'
 import { enqueueFinalOutput } from '../../services/uploadQueueService'
@@ -13,7 +14,8 @@ import { EventNotFoundPage } from './EventNotFoundPage'
 export function PreviewPage() {
   const navigate = useNavigate()
   const { event, loading: eventLoading } = useCurrentEvent()
-  const [finalImage, setFinalImage] = useState('')
+  const [finalImageUrl, setFinalImageUrl] = useState('')
+  const [optimizedImage, setOptimizedImage] = useState(null)
   const [sessionId, setSessionId] = useState(null)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -23,8 +25,9 @@ export function PreviewPage() {
   const { processQueue, retry } = useUploadQueue({ eventId: event?.id })
 
   useEffect(() => {
-    if (!event) return
+    if (!event) return undefined
     let mounted = true
+    let previewUrl = ''
 
     const composePreview = async () => {
       const activeSessionId = await getActiveSession(event.id)
@@ -40,10 +43,15 @@ export function PreviewPage() {
         return
       }
 
-      const dataUrl = await composeFinalImage(photos, event.layoutConfig)
+      const canvas = await composeFinalCanvas(photos, event.layoutConfig)
+      const optimized = await optimizeFinalCanvas(canvas)
+      canvas.width = 0
+      canvas.height = 0
       if (!mounted) return
+      previewUrl = URL.createObjectURL(optimized.finalBlob)
       setSessionId(activeSessionId)
-      setFinalImage(dataUrl)
+      setOptimizedImage(optimized)
+      setFinalImageUrl(previewUrl)
       setLoading(false)
     }
 
@@ -51,6 +59,7 @@ export function PreviewPage() {
 
     return () => {
       mounted = false
+      if (previewUrl) URL.revokeObjectURL(previewUrl)
     }
   }, [event, navigate])
 
@@ -58,7 +67,7 @@ export function PreviewPage() {
     setSaving(true)
     setUploadStatus('uploading')
     setUploadError('')
-    const queuedOutput = await enqueueFinalOutput({ event, sessionId, imageDataUrl: finalImage })
+    const queuedOutput = await enqueueFinalOutput({ event, sessionId, optimizedImage })
     setQueuedOutputId(queuedOutput.id)
     processQueue()
     setSaving(false)
@@ -95,12 +104,12 @@ export function PreviewPage() {
       <ProgressSteps active={3} />
       <section className="px-5 pb-6 text-center">
         <h1 className="text-3xl font-black text-slate-950">Preview ảnh cuối</h1>
-        <p className="mt-2 text-sm font-semibold text-slate-500">Canvas xuất ảnh kích thước 1200 x 1800px.</p>
+        <p className="mt-2 text-sm font-semibold text-slate-500">Canvas xuất ảnh WebP tối ưu cho mobile.</p>
         <div className="mt-5 overflow-hidden rounded-[2rem] bg-purple-50 p-3 shadow-inner">
-          {loading ? <div className="grid aspect-[2/3] place-items-center text-purple-700"><WandSparkles className="animate-pulse" size={48} /></div> : <img alt="Ảnh photobooth cuối" className="aspect-[2/3] w-full rounded-[1.5rem] object-cover" src={finalImage} />}
+          {loading ? <div className="grid aspect-[2/3] place-items-center text-purple-700"><WandSparkles className="animate-pulse" size={48} /></div> : <img alt="Ảnh photobooth cuối" className="aspect-[2/3] w-full rounded-[1.5rem] object-cover" src={finalImageUrl} />}
         </div>
         <div className="mt-5 grid gap-3">
-          <a className={`inline-flex min-h-12 items-center justify-center rounded-2xl bg-white px-6 py-3 text-base font-bold text-purple-700 ring-1 ring-purple-100 ${!finalImage ? 'pointer-events-none opacity-50' : ''}`} download="photobooth.jpg" href={finalImage || '#'}>
+          <a className={`inline-flex min-h-12 items-center justify-center rounded-2xl bg-white px-6 py-3 text-base font-bold text-purple-700 ring-1 ring-purple-100 ${!finalImageUrl ? 'pointer-events-none opacity-50' : ''}`} download="photobooth.webp" href={finalImageUrl || '#'}>
             <Download className="mr-2" size={18} /> Tải ảnh xuống
           </a>
           {uploadStatus !== 'idle' ? (
@@ -113,7 +122,7 @@ export function PreviewPage() {
           {uploadStatus === 'failed' ? (
             <Button disabled={saving || !queuedOutputId} onClick={retryUpload} variant="secondary">{saving ? 'Đang retry...' : 'Retry upload'}</Button>
           ) : (
-            <Button disabled={!finalImage || saving || uploadStatus === 'success'} onClick={finish}>{saving ? 'Đang upload...' : 'Hoàn tất'}</Button>
+            <Button disabled={!optimizedImage || saving || uploadStatus === 'success'} onClick={finish}>{saving ? 'Đang upload...' : 'Hoàn tất'}</Button>
           )}
         </div>
       </section>

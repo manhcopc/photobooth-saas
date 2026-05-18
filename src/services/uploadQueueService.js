@@ -73,7 +73,7 @@ const patchLocalOutput = async (localOutputId, patch) => {
   await writeLocalOutputs(nextOutputs)
 }
 
-export const enqueueFinalOutput = async ({ event, sessionId, imageDataUrl }) => {
+export const enqueueFinalOutput = async ({ event, sessionId, optimizedImage }) => {
   const now = new Date().toISOString()
   const localOutputId = createId('local-output')
   const queueItem = {
@@ -81,12 +81,20 @@ export const enqueueFinalOutput = async ({ event, sessionId, imageDataUrl }) => 
     eventId: event.id,
     eventSlug: event.slug,
     sessionId,
-    imageDataUrl,
+    finalBlob: optimizedImage.finalBlob,
+    thumbnailBlob: optimizedImage.thumbnailBlob,
+    finalSize: optimizedImage.finalSize,
+    thumbnailSize: optimizedImage.thumbnailSize,
+    mimeType: optimizedImage.mimeType,
+    width: optimizedImage.width,
+    height: optimizedImage.height,
     localOutputId,
     status: UPLOAD_QUEUE_STATUSES.pending,
     retryCount: 0,
     errorMessage: '',
-    remoteImageUrl: '',
+    remoteImageUrl: null,
+    remoteThumbnailUrl: null,
+    syncStatus: UPLOAD_QUEUE_STATUSES.pending,
     createdAt: now,
     updatedAt: now,
   }
@@ -95,12 +103,20 @@ export const enqueueFinalOutput = async ({ event, sessionId, imageDataUrl }) => 
     eventId: event.id,
     eventSlug: event.slug,
     sessionId,
-    imageDataUrl,
+    finalBlob: optimizedImage.finalBlob,
+    thumbnailBlob: optimizedImage.thumbnailBlob,
+    finalSize: optimizedImage.finalSize,
+    thumbnailSize: optimizedImage.thumbnailSize,
+    mimeType: optimizedImage.mimeType,
+    width: optimizedImage.width,
+    height: optimizedImage.height,
     queueItemId: queueItem.id,
     status: UPLOAD_QUEUE_STATUSES.pending,
     retryCount: 0,
     errorMessage: '',
-    remoteImageUrl: '',
+    remoteImageUrl: null,
+    remoteThumbnailUrl: null,
+    syncStatus: UPLOAD_QUEUE_STATUSES.pending,
     createdAt: now,
     updatedAt: now,
   }
@@ -125,10 +141,12 @@ export const uploadQueueItem = async (id) => {
   activeUploads.add(id)
   const uploadingItem = await patchQueueItem(id, {
     status: UPLOAD_QUEUE_STATUSES.uploading,
+    syncStatus: UPLOAD_QUEUE_STATUSES.uploading,
     errorMessage: '',
   })
   await patchLocalOutput(queueItem.localOutputId, {
     status: UPLOAD_QUEUE_STATUSES.uploading,
+    syncStatus: UPLOAD_QUEUE_STATUSES.uploading,
     errorMessage: '',
   })
 
@@ -137,6 +155,8 @@ export const uploadQueueItem = async (id) => {
     const successPatch = {
       status: UPLOAD_QUEUE_STATUSES.success,
       remoteImageUrl: remoteOutput.imageUrl,
+      remoteThumbnailUrl: remoteOutput.thumbnailUrl,
+      syncStatus: UPLOAD_QUEUE_STATUSES.success,
       errorMessage: '',
     }
     const successItem = await patchQueueItem(id, successPatch)
@@ -146,8 +166,13 @@ export const uploadQueueItem = async (id) => {
     const retryCount = (queueItem.retryCount || 0) + 1
     const failedPatch = {
       status: UPLOAD_QUEUE_STATUSES.failed,
+      syncStatus: UPLOAD_QUEUE_STATUSES.failed,
       retryCount,
       errorMessage: error.message || 'Upload thất bại.',
+      remoteImageUrl: error.remoteImageUrl || queueItem.remoteImageUrl || null,
+      remoteThumbnailUrl: error.remoteThumbnailUrl || queueItem.remoteThumbnailUrl || null,
+      finalStoragePath: error.finalStoragePath || queueItem.finalStoragePath,
+      thumbnailStoragePath: error.thumbnailStoragePath || queueItem.thumbnailStoragePath,
     }
     const failedItem = await patchQueueItem(id, failedPatch)
     await patchLocalOutput(queueItem.localOutputId, failedPatch)
@@ -160,11 +185,13 @@ export const uploadQueueItem = async (id) => {
 export const retryUploadQueueItem = async (id) => {
   const queueItem = await patchQueueItem(id, {
     status: UPLOAD_QUEUE_STATUSES.pending,
+    syncStatus: UPLOAD_QUEUE_STATUSES.pending,
     errorMessage: '',
   })
   if (queueItem) {
     await patchLocalOutput(queueItem.localOutputId, {
       status: UPLOAD_QUEUE_STATUSES.pending,
+      syncStatus: UPLOAD_QUEUE_STATUSES.pending,
       errorMessage: '',
     })
   }
@@ -183,6 +210,7 @@ const recoverInterruptedUploads = async () => {
     return {
       ...item,
       status: UPLOAD_QUEUE_STATUSES.failed,
+      syncStatus: UPLOAD_QUEUE_STATUSES.failed,
       errorMessage: 'Upload bị gián đoạn. Vui lòng retry.',
       updatedAt: new Date().toISOString(),
     }
@@ -193,6 +221,7 @@ const recoverInterruptedUploads = async () => {
     const recoveredItems = nextQueue.filter((item, index) => item !== queue[index])
     await Promise.all(recoveredItems.map((item) => patchLocalOutput(item.localOutputId, {
       status: UPLOAD_QUEUE_STATUSES.failed,
+      syncStatus: UPLOAD_QUEUE_STATUSES.failed,
       errorMessage: item.errorMessage,
     })))
   }

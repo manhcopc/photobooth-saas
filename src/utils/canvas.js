@@ -32,7 +32,7 @@ const drawImageCover = (context, image, slot) => {
   context.restore()
 }
 
-export const composeFinalImage = async (photos, layoutConfig) => {
+export const composeFinalCanvas = async (photos, layoutConfig) => {
   const canvas = document.createElement('canvas')
   canvas.width = layoutConfig.outputWidth
   canvas.height = layoutConfig.outputHeight
@@ -47,5 +47,13 @@ export const composeFinalImage = async (photos, layoutConfig) => {
   const frame = await loadImage(layoutConfig.overlaySrc)
   context.drawImage(frame, 0, 0, canvas.width, canvas.height)
 
-  return canvas.toDataURL('image/png')
+  return canvas
+}
+
+export const composeFinalImage = async (photos, layoutConfig) => {
+  const canvas = await composeFinalCanvas(photos, layoutConfig)
+  const dataUrl = canvas.toDataURL('image/png')
+  canvas.width = 0
+  canvas.height = 0
+  return dataUrl
 }

@@ -18,7 +18,14 @@ create table if not exists public.final_outputs (
   event_id text not null,
   session_id text,
   image_path text not null,
+  thumbnail_path text,
   image_url text not null,
+  thumbnail_url text,
+  file_size bigint,
+  thumbnail_size bigint,
+  mime_type text,
+  width integer,
+  height integer,
   upload_status text not null default 'success',
   created_at timestamptz not null default now()
 );
