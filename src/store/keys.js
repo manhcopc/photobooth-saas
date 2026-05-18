@@ -5,4 +5,5 @@ export const STORAGE_KEYS = {
   finalUploadQueue: 'pb_final_upload_queue',
   finalLocalOutputs: 'pb_final_local_outputs',
   activeSessions: 'pb_active_sessions',
+  adminAuthSession: 'pb_admin_auth_session',
 }

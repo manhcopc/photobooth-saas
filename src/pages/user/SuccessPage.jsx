@@ -2,6 +2,7 @@ import { PartyPopper } from 'lucide-react'
 import { Button } from '../../components/common/Button'
 import { useCurrentEvent } from '../../hooks/useCurrentEvent'
 import { EventNotFoundPage } from './EventNotFoundPage'
+import { EventInactivePage } from './EventInactivePage'
 
 export function SuccessPage() {
   const { event, loading } = useCurrentEvent()
@@ -11,6 +12,7 @@ export function SuccessPage() {
   }
 
   if (!event) return <EventNotFoundPage />
+  if (event.status !== 'active') return <EventInactivePage />
 
   return (
     <div className="grid min-h-svh place-items-center p-6 text-center md:min-h-[820px]">

@@ -6,6 +6,7 @@ import { PhotoGrid } from '../../components/booth/PhotoGrid'
 import { useCurrentEvent } from '../../hooks/useCurrentEvent'
 import { getActiveSession, getCaptures, saveSelectedPhotos } from '../../services/photoStorage'
 import { EventNotFoundPage } from './EventNotFoundPage'
+import { EventInactivePage } from './EventInactivePage'
 
 export function SelectPhotosPage() {
   const navigate = useNavigate()
@@ -61,6 +62,7 @@ export function SelectPhotosPage() {
   }
 
   if (!event) return <EventNotFoundPage />
+  if (event.status !== 'active') return <EventInactivePage />
 
   if (loading) {
     return <div className="grid min-h-svh place-items-center p-6 font-bold text-purple-700 md:min-h-[820px]">Đang tải ảnh...</div>

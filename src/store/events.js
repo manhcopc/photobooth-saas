@@ -1,1 +1,1 @@
-export { createEvent, getEventBySlug, getEvents, saveEvents } from '../services/eventStorage'
+export { createEvent, getEventBySlug, getEvents, saveEvents, updateEvent } from '../services/eventStorage'

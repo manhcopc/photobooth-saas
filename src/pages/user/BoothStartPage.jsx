@@ -5,6 +5,7 @@ import { BoothHeader } from '../../components/booth/BoothHeader'
 import { useCurrentEvent } from '../../hooks/useCurrentEvent'
 import { startPhotoSession } from '../../services/photoStorage'
 import { EventNotFoundPage } from './EventNotFoundPage'
+import { EventInactivePage } from './EventInactivePage'
 
 export function BoothStartPage() {
   const navigate = useNavigate()
@@ -21,6 +22,7 @@ export function BoothStartPage() {
   }
 
   if (!event) return <EventNotFoundPage />
+  if (event.status !== 'active') return <EventInactivePage />
 
   return (
     <div className="min-h-svh md:min-h-[820px]">

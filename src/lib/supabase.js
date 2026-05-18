@@ -1,8 +1,10 @@
 export const SUPABASE_FINAL_IMAGES_BUCKET = 'photobooth-final-images'
 export const FINAL_OUTPUTS_TABLE = 'final_outputs'
+export const SUPABASE_FRAMES_BUCKET = 'photobooth-frames'
 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL?.replace(/\/$/, '') || ''
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || ''
+let authToken = ''
 
 const assertSupabaseConfig = () => {
   if (!supabaseUrl || !supabaseAnonKey) {
@@ -12,7 +14,7 @@ const assertSupabaseConfig = () => {
 
 const buildHeaders = (extraHeaders = {}) => ({
   apikey: supabaseAnonKey,
-  Authorization: `Bearer ${supabaseAnonKey}`,
+  Authorization: `Bearer ${authToken || supabaseAnonKey}`,
   ...extraHeaders,
 })
 
@@ -36,7 +38,42 @@ const parseResponse = async (response) => {
 
 export const isSupabaseConfigured = () => Boolean(supabaseUrl && supabaseAnonKey)
 
+export const setSupabaseAuthToken = (token = '') => {
+  authToken = token
+}
+
 export const supabase = {
+  auth: {
+    async signInWithPassword({ email, password }) {
+      assertSupabaseConfig()
+      const response = await fetch(`${supabaseUrl}/auth/v1/token?grant_type=password`, {
+        method: 'POST',
+        headers: buildHeaders({ 'Content-Type': 'application/json' }),
+        body: JSON.stringify({ email, password }),
+      })
+      const data = await parseResponse(response)
+      setSupabaseAuthToken(data.access_token || '')
+      return { data, error: null }
+    },
+    async getUser(accessToken) {
+      assertSupabaseConfig()
+      const response = await fetch(`${supabaseUrl}/auth/v1/user`, {
+        headers: buildHeaders({ Authorization: `Bearer ${accessToken || authToken || supabaseAnonKey}` }),
+      })
+      const data = await parseResponse(response)
+      return { data, error: null }
+    },
+    async signOut(accessToken) {
+      assertSupabaseConfig()
+      const response = await fetch(`${supabaseUrl}/auth/v1/logout`, {
+        method: 'POST',
+        headers: buildHeaders({ Authorization: `Bearer ${accessToken || authToken || supabaseAnonKey}` }),
+      })
+      if (response.status !== 204) await parseResponse(response)
+      setSupabaseAuthToken('')
+      return { data: null, error: null }
+    },
+  },
   storage: {
     from(bucketName) {
       return {
@@ -92,6 +129,24 @@ export const supabase = {
         const data = await parseResponse(response)
         return { data, error: null }
       },
+      async selectById(id, columns = '*') {
+        assertSupabaseConfig()
+        const query = new URLSearchParams({ select: columns, id: `eq.${id}`, limit: '1' })
+        const response = await fetch(`${supabaseUrl}/rest/v1/${tableName}?${query.toString()}`, {
+          headers: buildHeaders(),
+        })
+        const data = await parseResponse(response)
+        return { data: Array.isArray(data) ? data[0] || null : data, error: null }
+      },
+      async selectByColumn(column, value, columns = '*') {
+        assertSupabaseConfig()
+        const query = new URLSearchParams({ select: columns, [column]: `eq.${value}` })
+        const response = await fetch(`${supabaseUrl}/rest/v1/${tableName}?${query.toString()}`, {
+          headers: buildHeaders(),
+        })
+        const data = await parseResponse(response)
+        return { data, error: null }
+      },
       async updateById(id, payload) {
         assertSupabaseConfig()
         const query = new URLSearchParams({ id: `eq.${id}` })
@@ -119,10 +174,20 @@ export const supabase = {
         const data = await parseResponse(response)
         return { data, error: null }
       },
-      async selectAll() {
+      async deleteById(id) {
+        assertSupabaseConfig()
+        const query = new URLSearchParams({ id: `eq.${id}` })
+        const response = await fetch(`${supabaseUrl}/rest/v1/${tableName}?${query.toString()}`, {
+          method: 'DELETE',
+          headers: buildHeaders({ Prefer: 'return=minimal' }),
+        })
+        const data = await parseResponse(response)
+        return { data, error: null }
+      },
+      async selectAll(columns = '*') {
         assertSupabaseConfig()
         const query = new URLSearchParams({
-          select: '*',
+          select: columns,
           order: 'created_at.desc',
         })
         const response = await fetch(`${supabaseUrl}/rest/v1/${tableName}?${query.toString()}`, {

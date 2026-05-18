@@ -8,6 +8,7 @@ import { useCurrentEvent } from '../../hooks/useCurrentEvent'
 import { getActiveSession, saveCaptures } from '../../services/photoStorage'
 import { captureVideoFrame } from '../../utils/images'
 import { EventNotFoundPage } from './EventNotFoundPage'
+import { EventInactivePage } from './EventInactivePage'
 
 const TOTAL_PHOTOS = 6
 
@@ -100,6 +101,7 @@ export function CapturePage() {
   }
 
   if (!event) return <EventNotFoundPage />
+  if (event.status !== 'active') return <EventInactivePage />
 
   return (
     <div className="min-h-svh md:min-h-[820px]">

@@ -1,16 +1,23 @@
-import { ExternalLink, Images } from 'lucide-react'
-import { Link, useParams } from 'react-router-dom'
+import { ExternalLink, Images, Trash2, Upload } from 'lucide-react'
+import { Link, useNavigate, useParams } from 'react-router-dom'
 import { useEffect, useState } from 'react'
 import { QRCodeCard } from '../../components/admin/QRCodeCard'
-import { getEventBySlug } from '../../services/eventStorage'
+import { Button } from '../../components/common/Button'
+import { defaultFrameConfig } from '../../data/mockEvents'
+import { deleteEvent, getEventBySlug, updateEvent, uploadEventFrame } from '../../services/eventService'
 import { getCloudFinalOutputsByEventId } from '../../services/supabaseGalleryService'
 import { getPublicEventUrl } from '../../utils/getPublicEventUrl'
 
 export function EventDetailPage() {
   const { slug } = useParams()
+  const navigate = useNavigate()
   const [event, setEvent] = useState(null)
   const [images, setImages] = useState([])
+  const [form, setForm] = useState(null)
+  const [frameFile, setFrameFile] = useState(null)
   const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState(false)
+  const [message, setMessage] = useState('')
 
   useEffect(() => {
     let mounted = true
@@ -21,6 +28,15 @@ export function EventDetailPage() {
       if (!mounted) return
       setEvent(storedEvent)
       setImages(storedImages)
+      setForm(storedEvent ? {
+        name: storedEvent.name || '',
+        slug: storedEvent.slug || '',
+        description: storedEvent.description || '',
+        date: storedEvent.date || '',
+        status: storedEvent.status || 'active',
+        frameUrl: storedEvent.frameUrl || defaultFrameConfig.overlaySrc,
+        layoutConfig: JSON.stringify(storedEvent.layoutConfig || defaultFrameConfig, null, 2),
+      } : null)
       setLoading(false)
     }
 
@@ -31,8 +47,57 @@ export function EventDetailPage() {
     }
   }, [slug])
 
+  const update = (field) => (input) => setForm((current) => ({ ...current, [field]: input.target.value }))
+
+  const save = async (submitEvent) => {
+    submitEvent.preventDefault()
+    if (!event || !form) return
+    setSaving(true)
+    setMessage('')
+    try {
+      let layoutConfig
+      try {
+        layoutConfig = JSON.parse(form.layoutConfig)
+      } catch {
+        throw new Error('Layout config phải là JSON hợp lệ.')
+      }
+      let frameUrl = form.frameUrl
+      if (frameFile) frameUrl = await uploadEventFrame({ eventSlug: form.slug, file: frameFile })
+      const updatedEvent = await updateEvent(event.id, {
+        ...form,
+        frameUrl,
+        layoutConfig: {
+          ...layoutConfig,
+          overlaySrc: frameUrl,
+        },
+      })
+      setEvent(updatedEvent)
+      setForm((current) => ({ ...current, frameUrl, layoutConfig: JSON.stringify(updatedEvent.layoutConfig, null, 2) }))
+      setMessage('Đã lưu event thành công.')
+      if (updatedEvent.slug !== slug) navigate(`/admin/events/${updatedEvent.slug}`, { replace: true })
+    } catch (error) {
+      setMessage(error.message || 'Không thể lưu event.')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const remove = async () => {
+    if (!event) return
+    const confirmed = window.confirm('Bạn chắc chắn muốn xóa event này? Metadata/gallery có thể bị ảnh hưởng. TODO: cleanup file storage sau.')
+    if (!confirmed) return
+    setSaving(true)
+    try {
+      await deleteEvent(event.id)
+      navigate('/admin/events', { replace: true })
+    } catch (error) {
+      setMessage(error.message || 'Không thể xóa event.')
+      setSaving(false)
+    }
+  }
+
   if (loading) return <div className="font-bold text-purple-700">Đang tải event...</div>
-  if (!event) return <div className="rounded-3xl bg-white p-10 text-center font-bold text-slate-600">Không tìm thấy sự kiện.</div>
+  if (!event || !form) return <div className="rounded-3xl bg-white p-10 text-center font-bold text-slate-600">Không tìm thấy sự kiện.</div>
 
   const eventUrl = getPublicEventUrl(event.slug)
 
@@ -42,10 +107,9 @@ export function EventDetailPage() {
         <p className="text-sm font-bold uppercase tracking-wide text-pink-500">Event detail</p>
         <div className="mt-2 flex flex-wrap items-center gap-3">
           <h1 className="text-4xl font-black text-slate-950">{event.name}</h1>
-          <span className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-black text-emerald-700">Live</span>
+          <span className={`rounded-full px-3 py-1 text-xs font-black ${event.status === 'active' ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-600'}`}>{event.status}</span>
         </div>
         <p className="mt-2 text-slate-500">Slug: /e/{event.slug} · {event.date}</p>
-        <p className="mt-5 max-w-2xl leading-7 text-slate-600">{event.description}</p>
         <div className="mt-6 rounded-3xl bg-purple-50 p-4">
           <p className="text-sm font-black text-slate-950">Production URL</p>
           <p className="mt-2 break-all text-sm font-semibold text-purple-700">{eventUrl}</p>
@@ -54,12 +118,25 @@ export function EventDetailPage() {
           <a className="inline-flex items-center justify-center gap-2 rounded-2xl bg-purple-600 px-5 py-3 font-bold text-white" href={eventUrl} rel="noreferrer" target="_blank"><ExternalLink size={18} /> Mở event page</a>
           <Link className="inline-flex items-center justify-center gap-2 rounded-2xl bg-purple-50 px-5 py-3 font-bold text-purple-700" to={`/admin/events/${event.slug}/gallery`}><Images size={18} /> Xem gallery ({images.length})</Link>
         </div>
-        <div className="mt-8 rounded-3xl bg-slate-50 p-5">
-          <h2 className="font-black text-slate-950">Frame URL</h2>
-          <p className="mt-2 break-all text-sm font-semibold text-purple-700">{event.frameUrl}</p>
-          <h2 className="mt-5 font-black text-slate-950">Layout config</h2>
-          <pre className="mt-3 overflow-auto rounded-2xl bg-slate-950 p-4 text-xs text-pink-100">{JSON.stringify(event.layoutConfig, null, 2)}</pre>
-        </div>
+
+        <form className="mt-8 grid gap-4" onSubmit={save}>
+          <h2 className="text-2xl font-black text-slate-950">Chỉnh sửa event</h2>
+          <label className="grid gap-2 font-bold text-slate-700">Tên event<input className="rounded-2xl border border-slate-200 px-4 py-3 font-medium" onChange={update('name')} required value={form.name} /></label>
+          <label className="grid gap-2 font-bold text-slate-700">Slug<input className="rounded-2xl border border-slate-200 px-4 py-3 font-medium" onChange={update('slug')} required value={form.slug} /></label>
+          <label className="grid gap-2 font-bold text-slate-700">Mô tả<textarea className="min-h-24 rounded-2xl border border-slate-200 px-4 py-3 font-medium" onChange={update('description')} value={form.description} /></label>
+          <label className="grid gap-2 font-bold text-slate-700">Ngày event<input className="rounded-2xl border border-slate-200 px-4 py-3 font-medium" onChange={update('date')} type="date" value={form.date || ''} /></label>
+          <label className="grid gap-2 font-bold text-slate-700">Trạng thái<select className="rounded-2xl border border-slate-200 px-4 py-3 font-medium" onChange={update('status')} value={form.status}><option value="active">active</option><option value="inactive">inactive</option></select></label>
+          <label className="grid gap-2 font-bold text-slate-700">Frame URL<input className="rounded-2xl border border-slate-200 px-4 py-3 font-medium" onChange={update('frameUrl')} value={form.frameUrl} /></label>
+          <label className="grid gap-2 font-bold text-slate-700">Upload frame PNG/WebP<input accept="image/png,image/webp" className="rounded-2xl border border-slate-200 px-4 py-3 font-medium" onChange={(event) => setFrameFile(event.target.files?.[0] || null)} type="file" /></label>
+          {form.frameUrl ? <img alt="Preview frame" className="max-h-72 rounded-2xl border border-slate-100 object-contain" src={form.frameUrl} /> : null}
+          <label className="grid gap-2 font-bold text-slate-700">Layout config JSON<textarea className="min-h-52 rounded-2xl border border-slate-200 px-4 py-3 font-mono text-xs" onChange={update('layoutConfig')} value={form.layoutConfig} /></label>
+          {message ? <p className={`rounded-2xl p-3 text-sm font-bold ${message.startsWith('Đã') ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-600'}`}>{message}</p> : null}
+          <div className="flex flex-col gap-3 sm:flex-row">
+            <Button disabled={saving} type="submit">{saving ? 'Đang lưu...' : 'Save'}</Button>
+            <button className="inline-flex items-center justify-center gap-2 rounded-2xl bg-red-50 px-5 py-3 font-bold text-red-700" disabled={saving} onClick={remove} type="button"><Trash2 size={18} /> Xóa event</button>
+            <span className="inline-flex items-center gap-2 text-sm font-semibold text-slate-500"><Upload size={16} /> Frame được upload vào bucket photobooth-frames.</span>
+          </div>
+        </form>
       </article>
       <QRCodeCard event={event} eventUrl={eventUrl} />
     </section>

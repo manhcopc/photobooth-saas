@@ -10,6 +10,7 @@ import { getActiveSession, getSelectedPhotos } from '../../services/photoStorage
 import { useUploadQueue } from '../../hooks/useUploadQueue'
 import { enqueueFinalOutput } from '../../services/uploadQueueService'
 import { EventNotFoundPage } from './EventNotFoundPage'
+import { EventInactivePage } from './EventInactivePage'
 
 export function PreviewPage() {
   const navigate = useNavigate()
@@ -98,6 +99,7 @@ export function PreviewPage() {
   }
 
   if (!event) return <EventNotFoundPage />
+  if (event.status !== 'active') return <EventInactivePage />
 
   return (
     <div className="min-h-svh md:min-h-[820px]">
