@@ -52,23 +52,3 @@ export const saveSelectedPhotos = async ({ eventId, sessionId, photos }) => {
   await writeStorage(buildSelectedKey(eventId, sessionId), safePhotos)
   return safePhotos
 }
-
-export const saveFinalImage = async ({ eventId, sessionId, dataUrl }) => {
-  const images = await readStorage(STORAGE_KEYS.finalImages, [])
-  const safeImages = Array.isArray(images) ? images : []
-  const image = {
-    id: `img-${Date.now()}`,
-    eventId,
-    sessionId,
-    dataUrl,
-    createdAt: new Date().toISOString(),
-  }
-  await writeStorage(STORAGE_KEYS.finalImages, [image, ...safeImages])
-  return image
-}
-
-export const getFinalImages = async (eventId) => {
-  const images = await readStorage(STORAGE_KEYS.finalImages, [])
-  const safeImages = Array.isArray(images) ? images : []
-  return eventId ? safeImages.filter((image) => image.eventId === eventId) : safeImages
-}

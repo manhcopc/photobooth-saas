@@ -3,7 +3,7 @@ import { QRCodeCanvas } from 'qrcode.react'
 import { Link, useParams } from 'react-router-dom'
 import { useEffect, useState } from 'react'
 import { getEventBySlug } from '../../services/eventStorage'
-import { getFinalImages } from '../../services/photoStorage'
+import { getFinalOutputs } from '../../services/finalOutputService'
 
 export function EventDetailPage() {
   const { slug } = useParams()
@@ -16,7 +16,7 @@ export function EventDetailPage() {
 
     const loadEvent = async () => {
       const storedEvent = await getEventBySlug(slug)
-      const storedImages = storedEvent ? await getFinalImages(storedEvent.id) : []
+      const storedImages = storedEvent ? await getFinalOutputs(storedEvent.id).catch(() => []) : []
       if (!mounted) return
       setEvent(storedEvent)
       setImages(storedImages)

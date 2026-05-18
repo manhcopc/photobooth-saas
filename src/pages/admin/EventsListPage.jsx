@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { EventCard } from '../../components/admin/EventCard'
 import { getEvents } from '../../services/eventStorage'
-import { getFinalImages } from '../../services/photoStorage'
+import { getFinalOutputs } from '../../services/finalOutputService'
 
 export function EventsListPage() {
   const [events, setEvents] = useState([])
@@ -11,7 +11,7 @@ export function EventsListPage() {
     let mounted = true
 
     const loadEvents = async () => {
-      const [storedEvents, storedImages] = await Promise.all([getEvents(), getFinalImages()])
+      const [storedEvents, storedImages] = await Promise.all([getEvents(), getFinalOutputs().catch(() => [])])
       if (!mounted) return
       setEvents(storedEvents)
       setImages(storedImages)
