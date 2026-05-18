@@ -6,7 +6,8 @@ import { Button } from '../../components/common/Button'
 import { useCurrentEvent } from '../../hooks/useCurrentEvent'
 import { composeFinalImage } from '../../utils/canvas'
 import { getActiveSession, getSelectedPhotos } from '../../services/photoStorage'
-import { retryQueuedFinalOutput, uploadFinalOutput } from '../../services/finalOutputService'
+import { useUploadQueue } from '../../hooks/useUploadQueue'
+import { enqueueFinalOutput } from '../../services/uploadQueueService'
 import { EventNotFoundPage } from './EventNotFoundPage'
 
 export function PreviewPage() {
@@ -19,6 +20,7 @@ export function PreviewPage() {
   const [uploadStatus, setUploadStatus] = useState('idle')
   const [uploadError, setUploadError] = useState('')
   const [queuedOutputId, setQueuedOutputId] = useState(null)
+  const { processQueue, retry } = useUploadQueue({ eventId: event?.id })
 
   useEffect(() => {
     if (!event) return
@@ -52,26 +54,15 @@ export function PreviewPage() {
     }
   }, [event, navigate])
 
-  const handleUploadResult = (result) => {
-    if (result.status === 'success') {
-      setUploadStatus('success')
-      setUploadError('')
-      window.setTimeout(() => navigate(`/e/${event.slug}/success`), 450)
-      return
-    }
-
-    setUploadStatus('failed')
-    setQueuedOutputId(result.queuedOutput?.id || null)
-    setUploadError(result.error?.message || result.queuedOutput?.error || 'Upload thất bại. Ảnh đã được giữ trong queue để thử lại.')
-  }
-
   const finish = async () => {
     setSaving(true)
     setUploadStatus('uploading')
     setUploadError('')
-    const result = await uploadFinalOutput({ event, sessionId, dataUrl: finalImage })
+    const queuedOutput = await enqueueFinalOutput({ event, sessionId, imageDataUrl: finalImage })
+    setQueuedOutputId(queuedOutput.id)
+    processQueue()
     setSaving(false)
-    handleUploadResult(result)
+    window.setTimeout(() => navigate(`/e/${event.slug}/success`), 350)
   }
 
   const retryUpload = async () => {
@@ -79,9 +70,18 @@ export function PreviewPage() {
     setSaving(true)
     setUploadStatus('uploading')
     setUploadError('')
-    const result = await retryQueuedFinalOutput(queuedOutputId)
+    const result = await retry(queuedOutputId)
     setSaving(false)
-    handleUploadResult(result)
+
+    if (result.status === 'success') {
+      setUploadStatus('success')
+      setUploadError('')
+      window.setTimeout(() => navigate(`/e/${event.slug}/success`), 350)
+      return
+    }
+
+    setUploadStatus('failed')
+    setUploadError(result.errorMessage || 'Upload thất bại. Ảnh đã được giữ trong queue để thử lại.')
   }
 
   if (eventLoading) {
@@ -105,7 +105,7 @@ export function PreviewPage() {
           </a>
           {uploadStatus !== 'idle' ? (
             <div className="rounded-2xl bg-purple-50 p-3 text-sm font-bold text-purple-700">
-              {uploadStatus === 'uploading' ? 'uploading · Đang upload ảnh final lên Supabase...' : null}
+              {uploadStatus === 'uploading' ? 'uploading · Ảnh đã được đưa vào queue và đang đồng bộ...' : null}
               {uploadStatus === 'success' ? 'success · Upload thành công!' : null}
               {uploadStatus === 'failed' ? `failed · ${uploadError}` : null}
             </div>

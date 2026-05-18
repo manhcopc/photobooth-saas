@@ -12,8 +12,11 @@ import { EventsListPage } from './pages/admin/EventsListPage'
 import { CreateEventPage } from './pages/admin/CreateEventPage'
 import { EventDetailPage } from './pages/admin/EventDetailPage'
 import { EventGalleryPage } from './pages/admin/EventGalleryPage'
+import { useUploadQueue } from './hooks/useUploadQueue'
 
 function App() {
+  useUploadQueue()
+
   return (
     <Routes>
       <Route element={<UserShell />}>

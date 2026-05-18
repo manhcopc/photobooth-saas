@@ -1,43 +1,89 @@
 import { Download, RefreshCw } from 'lucide-react'
 import { Link, useParams } from 'react-router-dom'
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
+import { SyncStatusBadge } from '../../components/admin/SyncStatusBadge'
+import { useUploadQueue } from '../../hooks/useUploadQueue'
 import { getEventBySlug } from '../../services/eventStorage'
-import { getFinalOutputs, getQueuedFinalOutputs, retryQueuedFinalOutput } from '../../services/finalOutputService'
+import { getFinalOutputs } from '../../services/finalOutputService'
+import { getLocalFinalOutputs, retryUploadQueueItem, UPLOAD_QUEUE_STATUSES } from '../../services/uploadQueueService'
+
+const buildGalleryItems = ({ remoteImages, localOutputs, queueItems, remoteAvailable }) => {
+  const queueByLocalOutputId = new Map(queueItems.map((item) => [item.localOutputId, item]))
+  const remoteIds = new Set(remoteImages.map((image) => image.id))
+  const remoteGalleryItems = remoteImages.map((image) => ({
+    id: image.id,
+    eventId: image.eventId,
+    sessionId: image.sessionId,
+    imageUrl: image.imageUrl,
+    downloadUrl: image.imageUrl,
+    createdAt: image.createdAt,
+    status: UPLOAD_QUEUE_STATUSES.success,
+    source: 'remote',
+  }))
+  const localGalleryItems = localOutputs
+    .filter((output) => !remoteAvailable || !remoteIds.has(output.id))
+    .map((output) => {
+      const queueItem = queueByLocalOutputId.get(output.id)
+      const status = queueItem?.status || output.status || UPLOAD_QUEUE_STATUSES.pending
+      const remoteImageUrl = queueItem?.remoteImageUrl || output.remoteImageUrl
+      const imageUrl = remoteImageUrl && status === UPLOAD_QUEUE_STATUSES.success ? remoteImageUrl : output.imageDataUrl
+
+      return {
+        id: output.id,
+        eventId: output.eventId,
+        sessionId: output.sessionId,
+        imageUrl,
+        downloadUrl: imageUrl,
+        createdAt: output.createdAt,
+        status,
+        errorMessage: queueItem?.errorMessage || output.errorMessage,
+        queueItemId: output.queueItemId,
+        source: 'local',
+      }
+    })
+
+  return [...remoteGalleryItems, ...localGalleryItems]
+    .filter((item) => item.imageUrl)
+    .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
+}
 
 const loadGalleryData = async (slug, onGalleryError) => {
   const storedEvent = await getEventBySlug(slug)
-  if (!storedEvent) return { storedEvent: null, storedImages: [], storedQueue: [] }
+  if (!storedEvent) return { storedEvent: null, storedImages: [], localOutputs: [], remoteAvailable: false }
 
-  const [storedImages, storedQueue] = await Promise.all([
-    getFinalOutputs(storedEvent.id).catch((error) => {
-      onGalleryError(error.message || 'Không thể tải gallery từ Supabase.')
-      return []
-    }),
-    getQueuedFinalOutputs(storedEvent.id),
-  ])
+  const localOutputs = await getLocalFinalOutputs(storedEvent.id)
+  let remoteAvailable = true
+  const storedImages = await getFinalOutputs(storedEvent.id).catch((error) => {
+    remoteAvailable = false
+    onGalleryError(error.message || 'Không thể tải gallery từ Supabase. Đang hiển thị ảnh local nếu có.')
+    return []
+  })
 
-  return { storedEvent, storedImages, storedQueue }
+  return { storedEvent, storedImages, localOutputs, remoteAvailable }
 }
 
 export function EventGalleryPage() {
   const { slug } = useParams()
   const [event, setEvent] = useState(null)
-  const [images, setImages] = useState([])
-  const [queuedImages, setQueuedImages] = useState([])
+  const [remoteImages, setRemoteImages] = useState([])
+  const [localOutputs, setLocalOutputs] = useState([])
+  const [remoteAvailable, setRemoteAvailable] = useState(false)
   const [loading, setLoading] = useState(true)
   const [retryingId, setRetryingId] = useState('')
   const [galleryError, setGalleryError] = useState('')
+  const { queue, refreshQueue } = useUploadQueue({ eventId: event?.id })
 
   useEffect(() => {
     let mounted = true
 
     const loadGallery = async () => {
       setGalleryError('')
-      const { storedEvent, storedImages, storedQueue } = await loadGalleryData(slug, setGalleryError)
+      const { storedEvent, storedImages, localOutputs: storedLocalOutputs, remoteAvailable: canReadRemote } = await loadGalleryData(slug, setGalleryError)
       if (!mounted) return
       setEvent(storedEvent)
-      setImages(storedImages)
-      setQueuedImages(storedQueue.filter((item) => item.status === 'failed'))
+      setRemoteImages(storedImages)
+      setLocalOutputs(storedLocalOutputs)
+      setRemoteAvailable(canReadRemote)
       setLoading(false)
     }
 
@@ -48,17 +94,26 @@ export function EventGalleryPage() {
     }
   }, [slug])
 
+  const galleryItems = useMemo(() => buildGalleryItems({
+    remoteImages,
+    localOutputs,
+    queueItems: queue,
+    remoteAvailable,
+  }), [localOutputs, queue, remoteAvailable, remoteImages])
+
   const refreshGallery = async () => {
     setGalleryError('')
-    const { storedEvent, storedImages, storedQueue } = await loadGalleryData(slug, setGalleryError)
+    const { storedEvent, storedImages, localOutputs: storedLocalOutputs, remoteAvailable: canReadRemote } = await loadGalleryData(slug, setGalleryError)
     setEvent(storedEvent)
-    setImages(storedImages)
-    setQueuedImages(storedQueue.filter((item) => item.status === 'failed'))
+    setRemoteImages(storedImages)
+    setLocalOutputs(storedLocalOutputs)
+    setRemoteAvailable(canReadRemote)
+    await refreshQueue()
   }
 
   const retryUpload = async (id) => {
     setRetryingId(id)
-    await retryQueuedFinalOutput(id)
+    await retryUploadQueueItem(id)
     setRetryingId('')
     await refreshGallery()
   }
@@ -71,42 +126,35 @@ export function EventGalleryPage() {
       <div className="mb-5 flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
         <div>
           <h1 className="text-3xl font-black text-slate-950">Gallery: {event.name}</h1>
-          <p className="mt-2 text-slate-500">{images.length} ảnh final đã sync trên Supabase.</p>
+          <p className="mt-2 text-slate-500">{galleryItems.length} ảnh final, ưu tiên Supabase và fallback local IndexedDB khi offline.</p>
         </div>
         <Link className="rounded-2xl bg-purple-50 px-5 py-3 font-bold text-purple-700" to={`/admin/events/${event.slug}`}>Quay lại chi tiết</Link>
       </div>
       {galleryError ? <p className="mb-4 rounded-2xl bg-amber-50 p-4 text-sm font-bold text-amber-700">{galleryError}</p> : null}
-      {queuedImages.length ? (
-        <div className="mb-6 rounded-3xl bg-white p-5 shadow-sm ring-1 ring-amber-100">
-          <h2 className="text-xl font-black text-slate-950">Ảnh upload failed trong IndexedDB queue</h2>
-          <div className="mt-4 grid gap-3">
-            {queuedImages.map((image) => (
-              <div className="flex items-center justify-between gap-3 rounded-2xl bg-amber-50 p-3" key={image.id}>
-                <div className="min-w-0 text-sm">
-                  <p className="truncate font-bold text-amber-900">{image.id}</p>
-                  <p className="text-amber-700">failed · {image.error || 'Upload thất bại'}</p>
-                </div>
-                <button className="inline-flex items-center gap-2 rounded-xl bg-white px-3 py-2 text-sm font-bold text-purple-700" disabled={retryingId === image.id} onClick={() => retryUpload(image.id)} type="button">
-                  <RefreshCw size={14} /> {retryingId === image.id ? 'Retrying...' : 'Retry'}
-                </button>
-              </div>
-            ))}
-          </div>
-        </div>
-      ) : null}
-      {images.length === 0 ? (
+      {galleryItems.length === 0 ? (
         <div className="rounded-3xl bg-white p-10 text-center shadow-sm ring-1 ring-slate-100">
-          <p className="text-lg font-bold text-slate-600">Chưa có ảnh nào trên Supabase. Hãy hoàn tất một lượt chụp ở user flow.</p>
+          <p className="text-lg font-bold text-slate-600">Chưa có ảnh nào. Hãy hoàn tất một lượt chụp ở user flow.</p>
         </div>
       ) : (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-          {images.map((image) => (
-            <article className="overflow-hidden rounded-3xl bg-white p-3 shadow-sm ring-1 ring-slate-100" key={image.id}>
-              <img alt="Ảnh final trong gallery" className="aspect-[2/3] w-full rounded-2xl object-cover" src={image.imageUrl} />
+          {galleryItems.map((image) => (
+            <article className="overflow-hidden rounded-3xl bg-white p-3 shadow-sm ring-1 ring-slate-100" key={`${image.source}-${image.id}`}>
+              <div className="relative">
+                <img alt="Ảnh final trong gallery" className="aspect-[2/3] w-full rounded-2xl object-cover" src={image.imageUrl} />
+                <div className="absolute left-2 top-2"><SyncStatusBadge status={image.status} /></div>
+              </div>
               <div className="mt-3 flex items-center justify-between gap-2 text-xs text-slate-500">
                 <span>{new Date(image.createdAt).toLocaleString('vi-VN')}</span>
-                <a className="rounded-xl bg-purple-50 p-2 text-purple-700" download={`${image.id}.png`} href={image.imageUrl}><Download size={16} /></a>
+                <a className="rounded-xl bg-purple-50 p-2 text-purple-700" download={`${image.id}.png`} href={image.downloadUrl}><Download size={16} /></a>
               </div>
+              {image.status === UPLOAD_QUEUE_STATUSES.failed ? (
+                <div className="mt-3 rounded-2xl bg-red-50 p-3 text-xs font-bold text-red-700">
+                  <p>{image.errorMessage || 'Upload thất bại.'}</p>
+                  <button className="mt-2 inline-flex items-center gap-2 rounded-xl bg-white px-3 py-2 text-purple-700" disabled={retryingId === image.queueItemId} onClick={() => retryUpload(image.queueItemId)} type="button">
+                    <RefreshCw size={14} /> {retryingId === image.queueItemId ? 'Retrying...' : 'Retry upload'}
+                  </button>
+                </div>
+              ) : null}
             </article>
           ))}
         </div>

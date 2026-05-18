@@ -40,6 +40,12 @@ begin
   end if;
 
   if not exists (
+    select 1 from pg_policies where schemaname = 'public' and tablename = 'final_outputs' and policyname = 'Allow public final output updates'
+  ) then
+    create policy "Allow public final output updates" on public.final_outputs for update using (true) with check (true);
+  end if;
+
+  if not exists (
     select 1 from pg_policies where schemaname = 'storage' and tablename = 'objects' and policyname = 'Allow public final image reads'
   ) then
     create policy "Allow public final image reads" on storage.objects for select using (bucket_id = 'photobooth-final-images');

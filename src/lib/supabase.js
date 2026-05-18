@@ -5,8 +5,6 @@ const supabaseUrl = import.meta.env.VITE_SUPABASE_URL?.replace(/\/$/, '') || ''
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || ''
 
 const assertSupabaseConfig = () => {
-  console.debug('Supabase URL:', supabaseUrl);
-  console.debug('Supabase Anon Key:', supabaseAnonKey);
   if (!supabaseUrl || !supabaseAnonKey) {
     throw new Error('Thiếu VITE_SUPABASE_URL hoặc VITE_SUPABASE_ANON_KEY để upload ảnh lên Supabase.')
   }
@@ -75,6 +73,19 @@ export const supabase = {
           headers: buildHeaders({
             'Content-Type': 'application/json',
             Prefer: 'return=representation',
+          }),
+          body: JSON.stringify(payload),
+        })
+        const data = await parseResponse(response)
+        return { data, error: null }
+      },
+      async upsert(payload) {
+        assertSupabaseConfig()
+        const response = await fetch(`${supabaseUrl}/rest/v1/${tableName}?on_conflict=id`, {
+          method: 'POST',
+          headers: buildHeaders({
+            'Content-Type': 'application/json',
+            Prefer: 'resolution=merge-duplicates,return=representation',
           }),
           body: JSON.stringify(payload),
         })
