@@ -1,44 +1,28 @@
-import { useEffect, useState } from 'react'
-import { useNavigate, useParams } from 'react-router-dom'
+import { useNavigate } from 'react-router-dom'
 import { Button } from '../../components/common/Button'
 import { ProgressSteps } from '../../components/common/ProgressSteps'
 import { BoothHeader } from '../../components/booth/BoothHeader'
-import { clearSession, setActiveEventSlug } from '../../store/booth'
-import { getEventBySlug } from '../../store/events'
+import { useCurrentEvent } from '../../hooks/useCurrentEvent'
+import { startPhotoSession } from '../../services/photoStorage'
+import { EventNotFoundPage } from './EventNotFoundPage'
+import { EventInactivePage } from './EventInactivePage'
 
 export function BoothStartPage() {
-  const { slug = 'pink-party' } = useParams()
   const navigate = useNavigate()
-  const [event, setEvent] = useState(null)
-  const [loading, setLoading] = useState(true)
-
-  useEffect(() => {
-    let mounted = true
-
-    const loadEvent = async () => {
-      const storedEvent = await getEventBySlug(slug)
-      if (!mounted) return
-      setEvent(storedEvent)
-      setLoading(false)
-    }
-
-    loadEvent()
-
-    return () => {
-      mounted = false
-    }
-  }, [slug])
+  const { event, loading } = useCurrentEvent()
 
   const prepareSession = async () => {
     if (!event) return
-    await clearSession()
-    await setActiveEventSlug(event.slug)
-    navigate(`/booth/${event.slug}/capture`)
+    await startPhotoSession(event.id)
+    navigate(`/e/${event.slug}/capture`)
   }
 
-  if (loading || !event) {
+  if (loading) {
     return <div className="grid min-h-svh place-items-center p-6 font-bold text-purple-700 md:min-h-[820px]">Đang tải sự kiện...</div>
   }
+
+  if (!event) return <EventNotFoundPage />
+  if (event.status !== 'active') return <EventInactivePage />
 
   return (
     <div className="min-h-svh md:min-h-[820px]">

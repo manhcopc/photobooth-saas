@@ -17,7 +17,8 @@ export const mockEvents = [
     slug: 'pink-party',
     date: '2026-06-01',
     description: 'Photobooth demo với khung hồng tím ngọt ngào cho khách mời.',
-    frameConfig: defaultFrameConfig,
+    frameUrl: defaultFrameConfig.overlaySrc,
+    layoutConfig: defaultFrameConfig,
     createdAt: '2026-05-18T00:00:00.000Z',
   },
 ]
