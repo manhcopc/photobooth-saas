@@ -1,23 +1,48 @@
 import { Camera } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { useNavigate, useParams } from 'react-router-dom'
+import { useNavigate } from 'react-router-dom'
 import { ProgressSteps } from '../../components/common/ProgressSteps'
 import { Button } from '../../components/common/Button'
 import { useCamera } from '../../hooks/useCamera'
-import { saveCaptures } from '../../store/booth'
+import { useCurrentEvent } from '../../hooks/useCurrentEvent'
+import { getActiveSession, saveCaptures } from '../../services/photoStorage'
 import { captureVideoFrame } from '../../utils/images'
+import { EventNotFoundPage } from './EventNotFoundPage'
+import { EventInactivePage } from './EventInactivePage'
 
 const TOTAL_PHOTOS = 6
 
 export function CapturePage() {
-  const { slug = 'pink-party' } = useParams()
   const navigate = useNavigate()
-  const { videoRef, ready, error } = useCamera()
+  const { event, loading: eventLoading } = useCurrentEvent()
   const [photos, setPhotos] = useState([])
+  const [sessionId, setSessionId] = useState(null)
+  const { videoRef, ready, error } = useCamera(Boolean(event && sessionId))
   const [countdown, setCountdown] = useState(null)
   const [shooting, setShooting] = useState(false)
   const [saving, setSaving] = useState(false)
   const timerRef = useRef(null)
+
+  useEffect(() => {
+    if (!event) return
+    let mounted = true
+
+    const loadSession = async () => {
+      const activeSessionId = await getActiveSession(event.id)
+      if (!mounted) return
+      if (!activeSessionId) {
+        navigate(`/e/${event.slug}`)
+        return
+      }
+      setSessionId(activeSessionId)
+    }
+
+    loadSession()
+
+    return () => {
+      mounted = false
+    }
+  }, [event, navigate])
 
   const capturePhoto = useCallback(() => {
     const video = videoRef.current
@@ -46,22 +71,22 @@ export function CapturePage() {
   useEffect(() => () => window.clearInterval(timerRef.current), [])
 
   useEffect(() => {
-    if (ready && photos.length < TOTAL_PHOTOS && !shooting && !saving) {
+    if (ready && sessionId && photos.length < TOTAL_PHOTOS && !shooting && !saving) {
       const delay = window.setTimeout(takeOne, photos.length === 0 ? 700 : 1100)
       return () => window.clearTimeout(delay)
     }
-  }, [ready, photos.length, shooting, saving, takeOne])
+  }, [ready, sessionId, photos.length, shooting, saving, takeOne])
 
   useEffect(() => {
-    if (photos.length === 0) return
+    if (!event || !sessionId || photos.length === 0) return
     let mounted = true
 
     const persistPhotos = async () => {
       setSaving(true)
-      await saveCaptures(photos)
+      await saveCaptures({ eventId: event.id, sessionId, photos })
       if (!mounted) return
       setSaving(false)
-      if (photos.length >= TOTAL_PHOTOS) navigate(`/booth/${slug}/select`)
+      if (photos.length >= TOTAL_PHOTOS) navigate(`/e/${event.slug}/select`)
     }
 
     persistPhotos()
@@ -69,7 +94,14 @@ export function CapturePage() {
     return () => {
       mounted = false
     }
-  }, [navigate, photos, slug])
+  }, [event, navigate, photos, sessionId])
+
+  if (eventLoading) {
+    return <div className="grid min-h-svh place-items-center p-6 font-bold text-purple-700 md:min-h-[820px]">Đang tải sự kiện...</div>
+  }
+
+  if (!event) return <EventNotFoundPage />
+  if (event.status !== 'active') return <EventInactivePage />
 
   return (
     <div className="min-h-svh md:min-h-[820px]">

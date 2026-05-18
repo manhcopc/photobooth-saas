@@ -32,20 +32,29 @@ const drawImageCover = (context, image, slot) => {
   context.restore()
 }
 
-export const composeFinalImage = async (photos, frameConfig) => {
+export const composeFinalCanvas = async (photos, layoutConfig) => {
   const canvas = document.createElement('canvas')
-  canvas.width = frameConfig.outputWidth
-  canvas.height = frameConfig.outputHeight
+  canvas.width = layoutConfig.outputWidth
+  canvas.height = layoutConfig.outputHeight
   const context = canvas.getContext('2d')
 
-  context.fillStyle = frameConfig.background || '#fff7fb'
+  context.fillStyle = layoutConfig.background || '#fff7fb'
   context.fillRect(0, 0, canvas.width, canvas.height)
 
   const images = await Promise.all(photos.map((photo) => loadImage(photo)))
-  images.forEach((image, index) => drawImageCover(context, image, frameConfig.slots[index]))
+  images.forEach((image, index) => drawImageCover(context, image, layoutConfig.slots[index]))
 
-  const frame = await loadImage(frameConfig.overlaySrc)
+  const frame = await loadImage(layoutConfig.overlaySrc)
   context.drawImage(frame, 0, 0, canvas.width, canvas.height)
 
-  return canvas.toDataURL('image/png')
+  return canvas
 }
+
+export const composeFinalImage = async (photos, layoutConfig) => {
+  const canvas = await composeFinalCanvas(photos, layoutConfig)
+  const dataUrl = canvas.toDataURL('image/png')
+  canvas.width = 0
+  canvas.height = 0
+  return dataUrl
+}
+
