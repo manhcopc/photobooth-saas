@@ -1,33 +1,42 @@
 import { Download, WandSparkles } from 'lucide-react'
 import { useEffect, useState } from 'react'
-import { useNavigate, useParams } from 'react-router-dom'
+import { useNavigate } from 'react-router-dom'
 import { ProgressSteps } from '../../components/common/ProgressSteps'
 import { Button } from '../../components/common/Button'
+import { useCurrentEvent } from '../../hooks/useCurrentEvent'
 import { composeFinalImage } from '../../utils/canvas'
-import { getSelectedPhotos, saveFinalImage } from '../../store/booth'
-import { getEventBySlug } from '../../store/events'
+import { getActiveSession, getSelectedPhotos, saveFinalImage } from '../../services/photoStorage'
+import { EventNotFoundPage } from './EventNotFoundPage'
 
 export function PreviewPage() {
-  const { slug = 'pink-party' } = useParams()
   const navigate = useNavigate()
+  const { event, loading: eventLoading } = useCurrentEvent()
   const [finalImage, setFinalImage] = useState('')
+  const [sessionId, setSessionId] = useState(null)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
 
   useEffect(() => {
+    if (!event) return
     let mounted = true
 
     const composePreview = async () => {
-      const [photos, event] = await Promise.all([getSelectedPhotos(), getEventBySlug(slug)])
-      const safePhotos = Array.isArray(photos) ? photos : []
-
-      if (safePhotos.length !== 3) {
-        if (mounted) navigate(`/booth/${slug}/select`)
+      const activeSessionId = await getActiveSession(event.id)
+      if (!activeSessionId) {
+        if (mounted) navigate(`/e/${event.slug}`)
         return
       }
 
-      const dataUrl = await composeFinalImage(safePhotos, event.frameConfig)
+      const photos = await getSelectedPhotos({ eventId: event.id, sessionId: activeSessionId })
+
+      if (photos.length !== 3) {
+        if (mounted) navigate(`/e/${event.slug}/select`)
+        return
+      }
+
+      const dataUrl = await composeFinalImage(photos, event.layoutConfig)
       if (!mounted) return
+      setSessionId(activeSessionId)
       setFinalImage(dataUrl)
       setLoading(false)
     }
@@ -37,13 +46,19 @@ export function PreviewPage() {
     return () => {
       mounted = false
     }
-  }, [navigate, slug])
+  }, [event, navigate])
 
   const finish = async () => {
     setSaving(true)
-    await saveFinalImage({ eventSlug: slug, dataUrl: finalImage })
-    navigate(`/booth/${slug}/success`)
+    await saveFinalImage({ eventId: event.id, sessionId, dataUrl: finalImage })
+    navigate(`/e/${event.slug}/success`)
   }
+
+  if (eventLoading) {
+    return <div className="grid min-h-svh place-items-center p-6 font-bold text-purple-700 md:min-h-[820px]">Đang tải sự kiện...</div>
+  }
+
+  if (!event) return <EventNotFoundPage />
 
   return (
     <div className="min-h-svh md:min-h-[820px]">

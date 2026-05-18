@@ -1,19 +1,43 @@
 import { Download } from 'lucide-react'
 import { Link, useParams } from 'react-router-dom'
-import { getFinalImages } from '../../store/booth'
-import { getEventBySlug } from '../../store/events'
+import { useEffect, useState } from 'react'
+import { getEventBySlug } from '../../services/eventStorage'
+import { getFinalImages } from '../../services/photoStorage'
 
 export function EventGalleryPage() {
-  const { slug = 'pink-party' } = useParams()
-  const event = getEventBySlug(slug)
-  const images = getFinalImages(event.slug)
+  const { slug } = useParams()
+  const [event, setEvent] = useState(null)
+  const [images, setImages] = useState([])
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    let mounted = true
+
+    const loadGallery = async () => {
+      const storedEvent = await getEventBySlug(slug)
+      const storedImages = storedEvent ? await getFinalImages(storedEvent.id) : []
+      if (!mounted) return
+      setEvent(storedEvent)
+      setImages(storedImages)
+      setLoading(false)
+    }
+
+    loadGallery()
+
+    return () => {
+      mounted = false
+    }
+  }, [slug])
+
+  if (loading) return <div className="font-bold text-purple-700">Đang tải gallery...</div>
+  if (!event) return <div className="rounded-3xl bg-white p-10 text-center font-bold text-slate-600">Không tìm thấy sự kiện.</div>
 
   return (
     <section>
       <div className="mb-5 flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
         <div>
           <h1 className="text-3xl font-black text-slate-950">Gallery: {event.name}</h1>
-          <p className="mt-2 text-slate-500">{images.length} ảnh final trong localStorage.</p>
+          <p className="mt-2 text-slate-500">{images.length} ảnh final thuộc event này trong IndexedDB.</p>
         </div>
         <Link className="rounded-2xl bg-purple-50 px-5 py-3 font-bold text-purple-700" to={`/admin/events/${event.slug}`}>Quay lại chi tiết</Link>
       </div>

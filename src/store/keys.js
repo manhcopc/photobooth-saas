@@ -3,5 +3,5 @@ export const STORAGE_KEYS = {
   captures: 'pb_captures',
   selectedPhotos: 'pb_selected_photos',
   finalImages: 'pb_final_images',
-  activeEventSlug: 'pb_active_event_slug',
+  activeSessions: 'pb_active_sessions',
 }

@@ -18,11 +18,11 @@ function App() {
     <Routes>
       <Route element={<UserShell />}>
         <Route index element={<LandingPage />} />
-        <Route path="booth/:slug" element={<BoothStartPage />} />
-        <Route path="booth/:slug/capture" element={<CapturePage />} />
-        <Route path="booth/:slug/select" element={<SelectPhotosPage />} />
-        <Route path="booth/:slug/preview" element={<PreviewPage />} />
-        <Route path="booth/:slug/success" element={<SuccessPage />} />
+        <Route path="e/:slug" element={<BoothStartPage />} />
+        <Route path="e/:slug/capture" element={<CapturePage />} />
+        <Route path="e/:slug/select" element={<SelectPhotosPage />} />
+        <Route path="e/:slug/preview" element={<PreviewPage />} />
+        <Route path="e/:slug/success" element={<SuccessPage />} />
       </Route>
       <Route element={<AdminShell />}>
         <Route path="admin" element={<AdminLayout />}>

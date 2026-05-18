@@ -1,28 +1,38 @@
 import { useEffect, useState } from 'react'
-import { useNavigate, useParams } from 'react-router-dom'
+import { useNavigate } from 'react-router-dom'
 import { ProgressSteps } from '../../components/common/ProgressSteps'
 import { Button } from '../../components/common/Button'
 import { PhotoGrid } from '../../components/booth/PhotoGrid'
-import { getCaptures, saveSelectedPhotos } from '../../store/booth'
+import { useCurrentEvent } from '../../hooks/useCurrentEvent'
+import { getActiveSession, getCaptures, saveSelectedPhotos } from '../../services/photoStorage'
+import { EventNotFoundPage } from './EventNotFoundPage'
 
 export function SelectPhotosPage() {
-  const { slug = 'pink-party' } = useParams()
   const navigate = useNavigate()
+  const { event, loading: eventLoading } = useCurrentEvent()
   const [photos, setPhotos] = useState([])
   const [selected, setSelected] = useState([])
+  const [sessionId, setSessionId] = useState(null)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
 
   useEffect(() => {
+    if (!event) return
     let mounted = true
 
     const loadPhotos = async () => {
-      const storedPhotos = await getCaptures()
+      const activeSessionId = await getActiveSession(event.id)
+      if (!activeSessionId) {
+        if (mounted) navigate(`/e/${event.slug}`)
+        return
+      }
+
+      const storedPhotos = await getCaptures({ eventId: event.id, sessionId: activeSessionId })
       if (!mounted) return
-      const safePhotos = Array.isArray(storedPhotos) ? storedPhotos : []
-      setPhotos(safePhotos)
+      setSessionId(activeSessionId)
+      setPhotos(storedPhotos)
       setLoading(false)
-      if (safePhotos.length < 6) navigate(`/booth/${slug}/capture`)
+      if (storedPhotos.length < 6) navigate(`/e/${event.slug}/capture`)
     }
 
     loadPhotos()
@@ -30,7 +40,7 @@ export function SelectPhotosPage() {
     return () => {
       mounted = false
     }
-  }, [navigate, slug])
+  }, [event, navigate])
 
   const toggle = (photo) => {
     setSelected((current) => {
@@ -42,9 +52,15 @@ export function SelectPhotosPage() {
 
   const continueToPreview = async () => {
     setSaving(true)
-    await saveSelectedPhotos(selected)
-    navigate(`/booth/${slug}/preview`)
+    await saveSelectedPhotos({ eventId: event.id, sessionId, photos: selected })
+    navigate(`/e/${event.slug}/preview`)
   }
+
+  if (eventLoading) {
+    return <div className="grid min-h-svh place-items-center p-6 font-bold text-purple-700 md:min-h-[820px]">Đang tải sự kiện...</div>
+  }
+
+  if (!event) return <EventNotFoundPage />
 
   if (loading) {
     return <div className="grid min-h-svh place-items-center p-6 font-bold text-purple-700 md:min-h-[820px]">Đang tải ảnh...</div>
