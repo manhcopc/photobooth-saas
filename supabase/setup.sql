@@ -26,6 +26,7 @@ create table if not exists public.final_outputs (
   mime_type text,
   width integer,
   height integer,
+  download_count integer not null default 0,
   upload_status text not null default 'success',
   created_at timestamptz not null default now()
 );

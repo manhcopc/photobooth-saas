@@ -2,6 +2,7 @@ import { FINAL_OUTPUTS_TABLE, SUPABASE_FINAL_IMAGES_BUCKET, supabase } from '../
 import { createThumbnailBlob, dataUrlToBlob, resizeImageBlob } from '../utils/imageOptimization'
 
 const sanitizePathSegment = (value) => String(value || 'unknown').replace(/[^a-zA-Z0-9-_]/g, '-')
+
 export const normalizeFinalOutput = (output) => ({
   id: output.id,
   eventId: output.event_id || output.eventId,
@@ -79,6 +80,7 @@ export const uploadFinalOutputToSupabase = async (queueItem) => {
     error.thumbnailStoragePath = thumbnailPath
     throw error
   }
+
   const metadata = {
     id: queueItem.localOutputId,
     event_id: queueItem.eventId,

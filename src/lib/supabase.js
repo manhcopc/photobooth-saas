@@ -92,10 +92,24 @@ export const supabase = {
         const data = await parseResponse(response)
         return { data, error: null }
       },
-      async selectByEventId(eventId) {
+      async updateById(id, payload) {
+        assertSupabaseConfig()
+        const query = new URLSearchParams({ id: `eq.${id}` })
+        const response = await fetch(`${supabaseUrl}/rest/v1/${tableName}?${query.toString()}`, {
+          method: 'PATCH',
+          headers: buildHeaders({
+            'Content-Type': 'application/json',
+            Prefer: 'return=minimal',
+          }),
+          body: JSON.stringify(payload),
+        })
+        const data = await parseResponse(response)
+        return { data, error: null }
+      },
+      async selectByEventId(eventId, columns = '*') {
         assertSupabaseConfig()
         const query = new URLSearchParams({
-          select: '*',
+          select: columns,
           event_id: `eq.${eventId}`,
           order: 'created_at.desc',
         })
