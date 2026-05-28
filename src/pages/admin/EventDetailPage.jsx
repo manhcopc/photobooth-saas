@@ -42,6 +42,8 @@ export function EventDetailPage() {
         status: storedEvent.status || 'active',
         frameUrl: storedEvent.frameUrl || defaultFrameConfig.overlaySrc,
         layoutConfig: JSON.stringify(storedEvent.layoutConfig || defaultFrameConfig, null, 2),
+        defaultCountdownSeconds: storedEvent.defaultCountdownSeconds || 5,
+        allowUserChangeCountdown: storedEvent.allowUserChangeCountdown ?? true,
       } : null)
       if (storedEvent) {
         const eventAnalytics = await getEventAnalytics(storedEvent.id).catch(() => null)
@@ -199,6 +201,18 @@ export function EventDetailPage() {
           <label className="grid gap-2 font-bold text-slate-700">Slug<input className="rounded-2xl border border-slate-200 px-4 py-3 font-medium" onChange={update('slug')} required value={form.slug} /></label>
           <label className="grid gap-2 font-bold text-slate-700">Mô tả<textarea className="min-h-24 rounded-2xl border border-slate-200 px-4 py-3 font-medium" onChange={update('description')} value={form.description} /></label>
           <label className="grid gap-2 font-bold text-slate-700">Ngày event<input className="rounded-2xl border border-slate-200 px-4 py-3 font-medium" onChange={update('date')} type="date" value={form.date || ''} /></label>
+          <div className="rounded-3xl bg-purple-50 p-4">
+            <h3 className="mb-3 text-xl font-black text-slate-950">Cài đặt chụp ảnh</h3>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <label className="grid gap-2 font-bold text-slate-700">Thời gian đếm ngược mặc định<select className="rounded-2xl border border-slate-200 px-4 py-3 font-medium" onChange={(event) => setForm((current) => ({ ...current, defaultCountdownSeconds: Number(event.target.value) }))} value={form.defaultCountdownSeconds}>
+                <option value={3}>3 giây</option>
+                <option value={5}>5 giây</option>
+                <option value={7}>7 giây</option>
+                <option value={10}>10 giây</option>
+              </select></label>
+              <label className="flex items-center gap-3 rounded-2xl bg-white px-4 py-3 font-bold text-slate-700"><input checked={form.allowUserChangeCountdown} onChange={(event) => setForm((current) => ({ ...current, allowUserChangeCountdown: event.target.checked }))} type="checkbox" /> Cho phép khách thay đổi thời gian đếm ngược</label>
+            </div>
+          </div>
           <label className="grid gap-2 font-bold text-slate-700">Trạng thái<select className="rounded-2xl border border-slate-200 px-4 py-3 font-medium" onChange={update('status')} value={form.status}><option value="active">active</option><option value="inactive">inactive</option></select></label>
           <label className="grid gap-2 font-bold text-slate-700">Frame URL<input className="rounded-2xl border border-slate-200 px-4 py-3 font-medium" onChange={update('frameUrl')} value={form.frameUrl} /></label>
           <label className="grid gap-2 font-bold text-slate-700">Upload frame PNG/WebP<input accept="image/png,image/webp" className="rounded-2xl border border-slate-200 px-4 py-3 font-medium" onChange={(event) => setFrameFile(event.target.files?.[0] || null)} type="file" /></label>

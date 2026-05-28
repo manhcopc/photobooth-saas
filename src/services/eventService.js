@@ -30,6 +30,8 @@ const normalizeEvent = (event) => {
     frameUrl,
     layoutConfig,
     status: event.status || 'active',
+    defaultCountdownSeconds: Number(event.default_countdown_seconds || event.defaultCountdownSeconds || 5),
+    allowUserChangeCountdown: event.allow_user_change_countdown ?? event.allowUserChangeCountdown ?? true,
     createdAt: event.created_at || event.createdAt,
     updatedAt: event.updated_at || event.updatedAt,
   }
@@ -58,6 +60,8 @@ const toDbPayload = (payload) => {
       overlaySrc: frameUrl,
     },
     status: payload.status || 'active',
+    default_countdown_seconds: Number(payload.defaultCountdownSeconds || payload.default_countdown_seconds || 5),
+    allow_user_change_countdown: payload.allowUserChangeCountdown ?? payload.allow_user_change_countdown ?? true,
     updated_at: new Date().toISOString(),
   }
 }

@@ -13,13 +13,14 @@ const Badge = ({ children, tone = 'slate' }) => {
 export function EventFrameCard({ eventSlug, frame, onDelete, onSetDefault, onToggle }) {
   return (
     <article className="rounded-3xl bg-white p-3 shadow-sm ring-1 ring-slate-100">
-      <img alt={frame.name} className="aspect-[3/4] w-full rounded-2xl bg-slate-100 object-cover" src={frame.previewUrl || frame.frameUrl} />
+      <img alt={frame.name} className="aspect-[3/4] w-full rounded-2xl bg-slate-100 object-cover" src={frame.previewUrl || frame.overlayUrl || frame.frameUrl || frame.backgroundUrl} />
       <div className="mt-3 flex items-start justify-between gap-2">
         <div>
           <h4 className="font-black text-slate-950">{frame.name}</h4>
           <div className="mt-2 flex flex-wrap gap-2">
             {frame.isDefault ? <Badge tone="purple">Mặc định</Badge> : null}
             <Badge tone={frame.isActive ? 'emerald' : 'slate'}>{frame.isActive ? 'Đang bật' : 'Đã tắt'}</Badge>
+            <Badge tone="amber">{frame.renderMode === 'background_overlay' ? 'Background + overlay' : 'Chỉ overlay'}</Badge>
           </div>
         </div>
       </div>

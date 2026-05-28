@@ -34,6 +34,7 @@ export const mapLocalOutputToGalleryItem = (output, queueItem) => {
     width: output.width,
     height: output.height,
     frameName: output.selectedFrameName || queueItem?.selectedFrameName || '',
+    renderMode: output.selectedFrameRenderMode || queueItem?.selectedFrameRenderMode || 'overlay_only',
   }
 }
 

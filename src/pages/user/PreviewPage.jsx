@@ -57,7 +57,7 @@ export function PreviewPage() {
       }
       const storedFrame = await getSelectedFrame({ eventId: event.id, sessionId: activeSessionId })
       const initialFrame = frameList.find((f) => f.id === storedFrame?.id) || frameList.find((f) => f.isDefault) || frameList[0]
-      const canvas = await composeFinalCanvas(photos, initialFrame?.layoutConfig || event.layoutConfig)
+      const canvas = await composeFinalCanvas(photos, initialFrame || event.layoutConfig)
       const optimized = await optimizeFinalCanvas(canvas)
       canvas.width = 0
       canvas.height = 0
@@ -112,7 +112,7 @@ export function PreviewPage() {
   const chooseFrame = async (frame) => {
     if (!event || !sessionId) return
     const photos = await getSelectedPhotos({ eventId: event.id, sessionId })
-    const canvas = await composeFinalCanvas(photos, frame.layoutConfig || event.layoutConfig)
+    const canvas = await composeFinalCanvas(photos, frame || event.layoutConfig)
     const optimized = await optimizeFinalCanvas(canvas)
     canvas.width = 0
     canvas.height = 0
@@ -139,7 +139,9 @@ export function PreviewPage() {
         <p className="mt-2 text-sm font-semibold text-slate-500">Canvas xuất ảnh WebP tối ưu cho mobile.</p>
         {frameError ? <p className="mt-4 rounded-2xl bg-red-50 p-4 text-sm font-bold text-red-600">{frameError}</p> : null}
         <div className="mt-5 overflow-hidden rounded-[2rem] bg-purple-50 p-3 shadow-inner">
-          {loading ? <div className="grid aspect-[2/3] place-items-center text-purple-700"><WandSparkles className="animate-pulse" size={48} /></div> : <img alt="Ảnh photobooth cuối" className="aspect-[2/3] w-full rounded-[1.5rem] object-cover" src={finalImageUrl} />}
+          {loading ? <div className="grid aspect-[2/3] place-items-center text-purple-700"><WandSparkles className="animate-pulse" size={48} /></div> : null}
+          {!loading && finalImageUrl ? <img alt="Ảnh photobooth cuối" className="aspect-[2/3] w-full rounded-[1.5rem] object-cover" src={finalImageUrl} /> : null}
+          {!loading && !finalImageUrl ? <div className="grid aspect-[2/3] place-items-center rounded-[1.5rem] text-sm font-bold text-slate-500">Chưa có preview</div> : null}
         </div>
         {frames.length > 1 ? (
           <div className="mt-4 text-left">

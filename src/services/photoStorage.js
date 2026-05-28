@@ -3,6 +3,7 @@ import { readStorage, removeStorage, writeStorage } from '../utils/storage'
 
 const buildSessionKey = (eventId) => `${STORAGE_KEYS.activeSessions}:${eventId}`
 const buildSessionFrameKey = (eventId, sessionId) => `${STORAGE_KEYS.activeSessions}:${eventId}:${sessionId}:frame`
+const buildSessionCountdownKey = (eventId, sessionId) => `${STORAGE_KEYS.activeSessions}:${eventId}:${sessionId}:countdown`
 const buildCaptureKey = (eventId, sessionId) => `${STORAGE_KEYS.captures}:${eventId}:${sessionId}`
 const buildSelectedKey = (eventId, sessionId) => `${STORAGE_KEYS.selectedPhotos}:${eventId}:${sessionId}`
 
@@ -20,6 +21,8 @@ export const clearSession = async ({ eventId, sessionId }) => {
   await Promise.all([
     removeStorage(buildCaptureKey(eventId, sessionId)),
     removeStorage(buildSelectedKey(eventId, sessionId)),
+    removeStorage(buildSessionFrameKey(eventId, sessionId)),
+    removeStorage(buildSessionCountdownKey(eventId, sessionId)),
   ])
 }
 
@@ -63,4 +66,16 @@ export const saveSelectedFrame = async ({ eventId, sessionId, frame }) => {
 export const getSelectedFrame = async ({ eventId, sessionId }) => {
   if (!eventId || !sessionId) return null
   return readStorage(buildSessionFrameKey(eventId, sessionId), null)
+}
+
+export const saveCountdownSeconds = async ({ eventId, sessionId, countdownSeconds }) => {
+  if (!eventId || !sessionId) return null
+  const safeCountdown = Number(countdownSeconds) || 5
+  await writeStorage(buildSessionCountdownKey(eventId, sessionId), safeCountdown)
+  return safeCountdown
+}
+
+export const getCountdownSeconds = async ({ eventId, sessionId }) => {
+  if (!eventId || !sessionId) return null
+  return readStorage(buildSessionCountdownKey(eventId, sessionId), null)
 }

@@ -1,6 +1,19 @@
 import { useEffect, useMemo, useRef } from 'react'
+import { FRAME_RENDER_MODES } from '../../services/eventFrameService'
 
 const PREVIEW_WIDTH = 360
+
+const safeLoadImage = (src) => new Promise((resolve) => {
+  if (!src) {
+    resolve(null)
+    return
+  }
+  const image = new Image()
+  image.crossOrigin = 'anonymous'
+  image.onload = () => resolve(image)
+  image.onerror = () => resolve(null)
+  image.src = src
+})
 
 const drawPlaceholder = (ctx, slot, index) => {
   const gradient = ctx.createLinearGradient(slot.x, slot.y, slot.x + slot.width, slot.y + slot.height)
@@ -16,7 +29,7 @@ const drawPlaceholder = (ctx, slot, index) => {
   ctx.restore()
 }
 
-export function FrameLayoutEditor({ layoutConfig, frameUrl, showMock = true }) {
+export function FrameLayoutEditor({ backgroundUrl = '', frameUrl = '', layoutConfig, renderMode = FRAME_RENDER_MODES.overlayOnly, showMock = true }) {
   const canvasRef = useRef(null)
   const canvasWidth = layoutConfig?.canvas?.width || layoutConfig?.outputWidth || 1200
   const canvasHeight = layoutConfig?.canvas?.height || layoutConfig?.outputHeight || 1800
@@ -24,22 +37,31 @@ export function FrameLayoutEditor({ layoutConfig, frameUrl, showMock = true }) {
   const scale = useMemo(() => PREVIEW_WIDTH / canvasWidth, [canvasWidth])
 
   useEffect(() => {
-    const canvas = canvasRef.current
-    if (!canvas) return
-    canvas.width = Math.round(canvasWidth * scale)
-    canvas.height = Math.round(canvasHeight * scale)
-    const ctx = canvas.getContext('2d')
-    ctx.clearRect(0, 0, canvas.width, canvas.height)
-    ctx.save()
-    ctx.scale(scale, scale)
-    ctx.fillStyle = layoutConfig?.background || '#fff7fb'
-    ctx.fillRect(0, 0, canvasWidth, canvasHeight)
+    let cancelled = false
+    const draw = async () => {
+      const canvas = canvasRef.current
+      if (!canvas) return
+      canvas.width = Math.round(canvasWidth * scale)
+      canvas.height = Math.round(canvasHeight * scale)
+      const ctx = canvas.getContext('2d')
+      ctx.clearRect(0, 0, canvas.width, canvas.height)
+      ctx.save()
+      ctx.scale(scale, scale)
+      ctx.fillStyle = layoutConfig?.background || '#fff7fb'
+      ctx.fillRect(0, 0, canvasWidth, canvasHeight)
 
-    if (showMock) {
-      slots.forEach((slot, index) => drawPlaceholder(ctx, slot, index))
-    }
+      if (renderMode === FRAME_RENDER_MODES.backgroundOverlay) {
+        const background = await safeLoadImage(backgroundUrl)
+        if (cancelled) return
+        if (background) ctx.drawImage(background, 0, 0, canvasWidth, canvasHeight)
+      }
 
-    const drawOverlay = () => {
+      if (showMock) slots.forEach((slot, index) => drawPlaceholder(ctx, slot, index))
+
+      const overlay = await safeLoadImage(frameUrl)
+      if (cancelled) return
+      if (overlay) ctx.drawImage(overlay, 0, 0, canvasWidth, canvasHeight)
+
       slots.forEach((slot, index) => {
         ctx.strokeStyle = '#7c3aed'
         ctx.lineWidth = 6
@@ -53,20 +75,9 @@ export function FrameLayoutEditor({ layoutConfig, frameUrl, showMock = true }) {
       ctx.restore()
     }
 
-    if (frameUrl) {
-      const img = new Image()
-      img.crossOrigin = 'anonymous'
-      img.onload = () => {
-        ctx.drawImage(img, 0, 0, canvasWidth, canvasHeight)
-        drawOverlay()
-      }
-      img.onerror = () => drawOverlay()
-      img.src = frameUrl
-      return
-    }
-    drawOverlay()
-  }, [canvasHeight, canvasWidth, frameUrl, layoutConfig?.background, scale, showMock, slots])
+    draw()
+    return () => { cancelled = true }
+  }, [backgroundUrl, canvasHeight, canvasWidth, frameUrl, layoutConfig?.background, renderMode, scale, showMock, slots])
 
   return <canvas className="w-full max-w-[360px] rounded-2xl border border-slate-200 bg-white" ref={canvasRef} />
 }
-

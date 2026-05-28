@@ -6,6 +6,7 @@ import { getEventBySlug, updateEvent, uploadEventFrame } from '../../services/ev
 import {
   createDefaultSlots,
   createEventFrame,
+  FRAME_RENDER_MODES,
   getFrameById,
   getFramesByEventId,
   normalizeFrameLayout,
@@ -29,6 +30,8 @@ const loadLocalImageSize = (file, fallback) => new Promise((resolve) => {
   img.src = url
 })
 
+const getLocalPreviewUrl = (file) => (file ? URL.createObjectURL(file) : '')
+
 export function EventFrameEditorPage() {
   const { slug, frameId } = useParams()
   const navigate = useNavigate()
@@ -37,8 +40,11 @@ export function EventFrameEditorPage() {
   const [event, setEvent] = useState(null)
   const [currentFrame, setCurrentFrame] = useState(null)
   const [layout, setLayout] = useState(normalizeFrameLayout(defaultFrameConfig, defaultFrameConfig.overlaySrc))
-  const [frameUrl, setFrameUrl] = useState(defaultFrameConfig.overlaySrc)
-  const [frameFile, setFrameFile] = useState(null)
+  const [renderMode, setRenderMode] = useState(FRAME_RENDER_MODES.overlayOnly)
+  const [overlayUrl, setOverlayUrl] = useState(defaultFrameConfig.overlaySrc)
+  const [backgroundUrl, setBackgroundUrl] = useState('')
+  const [overlayFile, setOverlayFile] = useState(null)
+  const [backgroundFile, setBackgroundFile] = useState(null)
   const [frameName, setFrameName] = useState('Frame mới')
   const [setAsDefault, setSetAsDefault] = useState(false)
   const [message, setMessage] = useState('')
@@ -57,18 +63,24 @@ export function EventFrameEditorPage() {
         setCurrentFrame(frame)
         setFrameName(frame.name)
         setSetAsDefault(frame.isDefault)
-        setFrameUrl(frame.frameUrl)
-        setLayout(normalizeFrameLayout(frame.layoutConfig, frame.frameUrl))
+        setRenderMode(frame.renderMode || FRAME_RENDER_MODES.overlayOnly)
+        setOverlayUrl(frame.overlayUrl || frame.frameUrl || '')
+        setBackgroundUrl(frame.backgroundUrl || '')
+        setLayout(normalizeFrameLayout(frame.layoutConfig, frame.overlayUrl || frame.frameUrl))
         return
       }
 
       if (mode === 'legacy') {
         const legacyFrameUrl = data.frameUrl || defaultFrameConfig.overlaySrc
-        setFrameUrl(legacyFrameUrl)
+        setRenderMode(FRAME_RENDER_MODES.overlayOnly)
+        setOverlayUrl(legacyFrameUrl)
+        setBackgroundUrl('')
         setLayout(normalizeFrameLayout(data.layoutConfig, legacyFrameUrl))
       } else {
         setFrameName('Frame mới')
-        setFrameUrl('')
+        setRenderMode(FRAME_RENDER_MODES.overlayOnly)
+        setOverlayUrl('')
+        setBackgroundUrl('')
         setLayout(normalizeFrameLayout(defaultFrameConfig, ''))
       }
     }
@@ -89,20 +101,32 @@ export function EventFrameEditorPage() {
     }))
   }
 
-  const onUploadFrame = async (file) => {
-    if (!file) return
-    setFrameFile(file)
+  const applyAssetDimension = async (file, previewUrl) => {
     const dimension = await loadLocalImageSize(file, layout.canvas)
-    const localUrl = URL.createObjectURL(file)
-    setFrameUrl(localUrl)
     setLayout((current) => ({
       ...current,
       canvas: dimension,
       outputWidth: dimension.width,
       outputHeight: dimension.height,
-      overlaySrc: localUrl,
+      overlaySrc: previewUrl || current.overlaySrc,
       slots: current?.slots?.length === 3 ? current.slots : createDefaultSlots(dimension.width, dimension.height),
     }))
+  }
+
+  const onUploadOverlay = async (file) => {
+    if (!file) return
+    setOverlayFile(file)
+    const localUrl = getLocalPreviewUrl(file)
+    setOverlayUrl(localUrl)
+    await applyAssetDimension(file, localUrl)
+  }
+
+  const onUploadBackground = async (file) => {
+    if (!file) return
+    setBackgroundFile(file)
+    const localUrl = getLocalPreviewUrl(file)
+    setBackgroundUrl(localUrl)
+    await applyAssetDimension(file, overlayUrl)
   }
 
   const resetDefault = () => {
@@ -114,8 +138,8 @@ export function EventFrameEditorPage() {
     if (!layout.canvas.width || !layout.canvas.height) return 'Canvas không hợp lệ.'
     if (!Array.isArray(layout.slots) || layout.slots.length !== 3) return 'Cần đúng 3 vùng ảnh.'
     if (layout.slots.some((slot) => slot.width <= 0 || slot.height <= 0)) return 'Chiều rộng/chiều cao vùng ảnh phải lớn hơn 0.'
-    if (mode === 'new' && !frameFile) return 'Vui lòng upload frame PNG/WebP.'
-    if (!frameName.trim()) return 'Vui lòng nhập tên frame.'
+    if (!overlayFile && !overlayUrl) return 'Vui lòng upload overlay image cho frame.'
+    if (mode !== 'legacy' && !frameName.trim()) return 'Vui lòng nhập tên frame.'
     return ''
   }
 
@@ -130,14 +154,20 @@ export function EventFrameEditorPage() {
     setSaving(true)
     setMessage('')
     try {
-      let uploadedFrameUrl = currentFrame?.frameUrl || (mode === 'legacy' ? event.frameUrl : frameUrl)
-      if (frameFile) {
-        uploadedFrameUrl = mode === 'legacy'
-          ? await uploadEventFrame({ eventSlug: event.slug, file: frameFile })
-          : await uploadFrameAsset({ eventSlug: event.slug, file: frameFile })
+      const targetFrameId = currentFrame?.id || frameId || `new-${Date.now()}`
+      let uploadedOverlayUrl = currentFrame?.overlayUrl || currentFrame?.frameUrl || (mode === 'legacy' ? event.frameUrl : overlayUrl)
+      let uploadedBackgroundUrl = currentFrame?.backgroundUrl || backgroundUrl || ''
+
+      if (overlayFile) {
+        uploadedOverlayUrl = mode === 'legacy'
+          ? await uploadEventFrame({ eventSlug: event.slug, file: overlayFile })
+          : await uploadFrameAsset({ eventSlug: event.slug, file: overlayFile, assetType: 'overlay', frameId: targetFrameId })
+      }
+      if (backgroundFile && mode !== 'legacy') {
+        uploadedBackgroundUrl = await uploadFrameAsset({ eventSlug: event.slug, file: backgroundFile, assetType: 'background', frameId: targetFrameId })
       }
 
-      const nextLayout = normalizeFrameLayout({ ...layout, overlaySrc: uploadedFrameUrl }, uploadedFrameUrl)
+      const nextLayout = normalizeFrameLayout({ ...layout, overlaySrc: uploadedOverlayUrl }, uploadedOverlayUrl)
 
       if (mode === 'new') {
         const existingFrames = await getFramesByEventId(event.id)
@@ -145,7 +175,10 @@ export function EventFrameEditorPage() {
         const created = await createEventFrame({
           eventId: event.id,
           name: frameName.trim(),
-          frameUrl: uploadedFrameUrl,
+          frameUrl: uploadedOverlayUrl,
+          overlayUrl: uploadedOverlayUrl,
+          backgroundUrl: renderMode === FRAME_RENDER_MODES.backgroundOverlay ? uploadedBackgroundUrl : '',
+          renderMode,
           layoutConfig: nextLayout,
           isDefault: shouldBeDefault,
           isActive: true,
@@ -160,18 +193,23 @@ export function EventFrameEditorPage() {
         await updateEventFrame(currentFrame.id, {
           ...currentFrame,
           name: frameName.trim(),
-          frameUrl: uploadedFrameUrl,
+          frameUrl: uploadedOverlayUrl,
+          overlayUrl: uploadedOverlayUrl,
+          backgroundUrl: renderMode === FRAME_RENDER_MODES.backgroundOverlay ? uploadedBackgroundUrl : '',
+          renderMode,
           layoutConfig: nextLayout,
           isDefault: setAsDefault || currentFrame.isDefault,
           isActive: currentFrame.isActive,
         })
         setMessage('Đã lưu bố cục frame thành công.')
       } else {
-        await updateEvent(event.id, { ...event, frameUrl: uploadedFrameUrl, layoutConfig: nextLayout })
+        await updateEvent(event.id, { ...event, frameUrl: uploadedOverlayUrl, layoutConfig: nextLayout })
         setMessage('Đã lưu frame legacy thành công.')
       }
-      setFrameFile(null)
-      setFrameUrl(uploadedFrameUrl)
+      setOverlayFile(null)
+      setBackgroundFile(null)
+      setOverlayUrl(uploadedOverlayUrl)
+      setBackgroundUrl(uploadedBackgroundUrl)
       setLayout(nextLayout)
     } catch (saveError) {
       setMessage(saveError.message || 'Không thể lưu frame.')
@@ -187,25 +225,34 @@ export function EventFrameEditorPage() {
       <article className="rounded-3xl bg-white p-5 shadow-sm ring-1 ring-slate-100">
         <h1 className="text-2xl font-black">{title}</h1>
         <p className="mt-1 text-sm text-slate-500">{event.name}</p>
-        <div className="mt-4"><FrameLayoutEditor frameUrl={frameUrl} layoutConfig={layout} showMock /></div>
+        <div className="mt-4"><FrameLayoutEditor backgroundUrl={backgroundUrl} frameUrl={overlayUrl} layoutConfig={layout} renderMode={renderMode} showMock /></div>
+        <div className="mt-4 grid gap-3 text-sm">
+          {backgroundUrl && renderMode === FRAME_RENDER_MODES.backgroundOverlay ? <img alt="Preview background" className="max-h-36 rounded-xl border object-contain" src={backgroundUrl} /> : null}
+          {overlayUrl ? <img alt="Preview overlay" className="max-h-36 rounded-xl border object-contain" src={overlayUrl} /> : null}
+        </div>
       </article>
 
       <article className="rounded-3xl bg-white p-5 shadow-sm ring-1 ring-slate-100">
         <div className="mb-4 flex flex-wrap gap-2">
           <Link className="rounded-xl bg-purple-50 px-4 py-2 font-bold text-purple-700" to={`/admin/events/${event.slug}`}>Quay lại event</Link>
-          <label className="rounded-xl bg-purple-600 px-4 py-2 font-bold text-white">Upload frame<input accept="image/png,image/webp,image/jpeg" className="hidden" onChange={(e) => onUploadFrame(e.target.files?.[0])} type="file" /></label>
           <button className="rounded-xl bg-slate-200 px-4 py-2 font-bold" onClick={resetDefault} type="button">Đặt lại mặc định</button>
           <button className="rounded-xl bg-purple-600 px-4 py-2 font-bold text-white disabled:opacity-60" disabled={saving} onClick={save} type="button">{saving ? 'Đang lưu...' : 'Lưu'}</button>
         </div>
 
         {mode !== 'legacy' ? (
-          <div className="mb-4 grid gap-2 sm:grid-cols-2">
+          <div className="mb-4 grid gap-3 sm:grid-cols-2">
             <label className="text-sm font-bold">Tên frame<input className="mt-1 w-full rounded-lg border px-3 py-2" onChange={(e) => setFrameName(e.target.value)} value={frameName} /></label>
             <label className="inline-flex items-center gap-2 self-end text-sm font-bold"><input checked={setAsDefault} onChange={(e) => setSetAsDefault(e.target.checked)} type="checkbox" /> Đặt làm frame mặc định</label>
+            <label className="text-sm font-bold">Kiểu render<select className="mt-1 w-full rounded-lg border px-3 py-2" onChange={(event) => setRenderMode(event.target.value)} value={renderMode}><option value={FRAME_RENDER_MODES.overlayOnly}>Chỉ overlay</option><option value={FRAME_RENDER_MODES.backgroundOverlay}>Background + overlay</option></select></label>
           </div>
         ) : null}
 
-        <p className="mb-4 text-sm text-slate-500">Xem thử realtime theo tỉ lệ preview. Giá trị lưu là kích thước thật của canvas.</p>
+        <div className="mb-4 grid gap-3 sm:grid-cols-2">
+          {renderMode === FRAME_RENDER_MODES.backgroundOverlay ? <label className="grid gap-2 text-sm font-bold">Upload background image<input accept="image/png,image/webp,image/jpeg" className="rounded-lg border px-3 py-2" onChange={(e) => onUploadBackground(e.target.files?.[0])} type="file" /></label> : null}
+          <label className="grid gap-2 text-sm font-bold">Upload overlay image<input accept="image/png,image/webp,image/jpeg" className="rounded-lg border px-3 py-2" onChange={(e) => onUploadOverlay(e.target.files?.[0])} type="file" /></label>
+        </div>
+
+        <p className="mb-4 text-sm text-slate-500">Preview mô phỏng đúng thứ tự lớp: background → ảnh mẫu → overlay. Giá trị slot lưu theo kích thước canvas thật.</p>
         <div className="grid gap-4 md:grid-cols-3">
           {layout.slots.map((slot, index) => (
             <div className="rounded-2xl border border-slate-200 p-3" key={index}>

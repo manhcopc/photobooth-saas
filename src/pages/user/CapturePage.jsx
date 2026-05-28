@@ -5,7 +5,7 @@ import { ProgressSteps } from '../../components/common/ProgressSteps'
 import { Button } from '../../components/common/Button'
 import { useCamera } from '../../hooks/useCamera'
 import { useCurrentEvent } from '../../hooks/useCurrentEvent'
-import { getActiveSession, saveCaptures } from '../../services/photoStorage'
+import { getActiveSession, getCountdownSeconds, saveCaptures } from '../../services/photoStorage'
 import { captureVideoFrame } from '../../utils/images'
 import { EventNotFoundPage } from './EventNotFoundPage'
 import { EventInactivePage } from './EventInactivePage'
@@ -17,6 +17,7 @@ export function CapturePage() {
   const { event, loading: eventLoading } = useCurrentEvent()
   const [photos, setPhotos] = useState([])
   const [sessionId, setSessionId] = useState(null)
+  const [countdownSeconds, setCountdownSeconds] = useState(5)
   const { videoRef, ready, error } = useCamera(Boolean(event && sessionId))
   const [countdown, setCountdown] = useState(null)
   const [shooting, setShooting] = useState(false)
@@ -34,6 +35,8 @@ export function CapturePage() {
         navigate(`/e/${event.slug}`)
         return
       }
+      const storedCountdown = await getCountdownSeconds({ eventId: event.id, sessionId: activeSessionId })
+      setCountdownSeconds(Number(storedCountdown || event.defaultCountdownSeconds || 5))
       setSessionId(activeSessionId)
     }
 
@@ -53,8 +56,8 @@ export function CapturePage() {
 
   const takeOne = useCallback(() => {
     setShooting(true)
-    setCountdown(3)
-    let value = 3
+    setCountdown(countdownSeconds)
+    let value = countdownSeconds
     timerRef.current = window.setInterval(() => {
       value -= 1
       if (value > 0) {
@@ -66,7 +69,7 @@ export function CapturePage() {
       capturePhoto()
       setShooting(false)
     }, 900)
-  }, [capturePhoto])
+  }, [capturePhoto, countdownSeconds])
 
   useEffect(() => () => window.clearInterval(timerRef.current), [])
 
