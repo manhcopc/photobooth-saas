@@ -32,6 +32,52 @@ const loadLocalImageSize = (file, fallback) => new Promise((resolve) => {
 
 const getLocalPreviewUrl = (file) => (file ? URL.createObjectURL(file) : '')
 
+const inspectImageFile = (file) => new Promise((resolve, reject) => {
+  if (!file) {
+    resolve(null)
+    return
+  }
+  const url = URL.createObjectURL(file)
+  const image = new Image()
+  image.onload = () => {
+    const width = image.naturalWidth
+    const height = image.naturalHeight
+    const canvas = document.createElement('canvas')
+    const maxSampleSize = 360
+    const scale = Math.min(1, maxSampleSize / Math.max(width, height))
+    canvas.width = Math.max(1, Math.round(width * scale))
+    canvas.height = Math.max(1, Math.round(height * scale))
+    const context = canvas.getContext('2d', { willReadFrequently: true })
+    context.drawImage(image, 0, 0, canvas.width, canvas.height)
+    const pixels = context.getImageData(0, 0, canvas.width, canvas.height).data
+    let hasAlpha = false
+    for (let index = 3; index < pixels.length; index += 4) {
+      if (pixels[index] < 255) {
+        hasAlpha = true
+        break
+      }
+    }
+    URL.revokeObjectURL(url)
+    resolve({ width, height, hasAlpha, type: file.type })
+  }
+  image.onerror = () => {
+    URL.revokeObjectURL(url)
+    reject(new Error('Không thể đọc file ảnh.'))
+  }
+  image.src = url
+})
+
+const buildAssetWarnings = ({ backgroundMeta, overlayMeta, renderMode }) => {
+  const warnings = []
+  if (overlayMeta && !overlayMeta.hasAlpha) {
+    warnings.push('Overlay này không có vùng trong suốt, ảnh chụp có thể bị che mất.')
+  }
+  if (renderMode === FRAME_RENDER_MODES.backgroundOverlay && backgroundMeta && overlayMeta && (backgroundMeta.width !== overlayMeta.width || backgroundMeta.height !== overlayMeta.height)) {
+    warnings.push(`Background (${backgroundMeta.width}x${backgroundMeta.height}) và overlay (${overlayMeta.width}x${overlayMeta.height}) khác kích thước.`)
+  }
+  return warnings
+}
+
 export function EventFrameEditorPage() {
   const { slug, frameId } = useParams()
   const navigate = useNavigate()
@@ -45,6 +91,9 @@ export function EventFrameEditorPage() {
   const [backgroundUrl, setBackgroundUrl] = useState('')
   const [overlayFile, setOverlayFile] = useState(null)
   const [backgroundFile, setBackgroundFile] = useState(null)
+  const [overlayMeta, setOverlayMeta] = useState(null)
+  const [backgroundMeta, setBackgroundMeta] = useState(null)
+  const [assetWarnings, setAssetWarnings] = useState([])
   const [frameName, setFrameName] = useState('Frame mới')
   const [setAsDefault, setSetAsDefault] = useState(false)
   const [message, setMessage] = useState('')
@@ -67,6 +116,9 @@ export function EventFrameEditorPage() {
         setOverlayUrl(frame.overlayUrl || frame.frameUrl || '')
         setBackgroundUrl(frame.backgroundUrl || '')
         setLayout(normalizeFrameLayout(frame.layoutConfig, frame.overlayUrl || frame.frameUrl))
+        setOverlayMeta(null)
+        setBackgroundMeta(null)
+        setAssetWarnings([])
         return
       }
 
@@ -76,12 +128,18 @@ export function EventFrameEditorPage() {
         setOverlayUrl(legacyFrameUrl)
         setBackgroundUrl('')
         setLayout(normalizeFrameLayout(data.layoutConfig, legacyFrameUrl))
+        setOverlayMeta(null)
+        setBackgroundMeta(null)
+        setAssetWarnings([])
       } else {
         setFrameName('Frame mới')
         setRenderMode(FRAME_RENDER_MODES.overlayOnly)
         setOverlayUrl('')
         setBackgroundUrl('')
         setLayout(normalizeFrameLayout(defaultFrameConfig, ''))
+        setOverlayMeta(null)
+        setBackgroundMeta(null)
+        setAssetWarnings([])
       }
     }
     load()
@@ -115,6 +173,14 @@ export function EventFrameEditorPage() {
 
   const onUploadOverlay = async (file) => {
     if (!file) return
+    if (!['image/png', 'image/webp'].includes(file.type)) {
+      setMessage('Overlay phải là file PNG hoặc WebP.')
+      return
+    }
+    setMessage('')
+    const metadata = await inspectImageFile(file)
+    setOverlayMeta(metadata)
+    setAssetWarnings(buildAssetWarnings({ backgroundMeta, overlayMeta: metadata, renderMode }))
     setOverlayFile(file)
     const localUrl = getLocalPreviewUrl(file)
     setOverlayUrl(localUrl)
@@ -123,6 +189,14 @@ export function EventFrameEditorPage() {
 
   const onUploadBackground = async (file) => {
     if (!file) return
+    if (!file.type.startsWith('image/')) {
+      setMessage('Background phải là file ảnh hợp lệ.')
+      return
+    }
+    setMessage('')
+    const metadata = await inspectImageFile(file)
+    setBackgroundMeta(metadata)
+    setAssetWarnings(buildAssetWarnings({ backgroundMeta: metadata, overlayMeta, renderMode }))
     setBackgroundFile(file)
     const localUrl = getLocalPreviewUrl(file)
     setBackgroundUrl(localUrl)
@@ -137,7 +211,7 @@ export function EventFrameEditorPage() {
   const validate = () => {
     if (!layout.canvas.width || !layout.canvas.height) return 'Canvas không hợp lệ.'
     if (!Array.isArray(layout.slots) || layout.slots.length !== 3) return 'Cần đúng 3 vùng ảnh.'
-    if (layout.slots.some((slot) => slot.width <= 0 || slot.height <= 0)) return 'Chiều rộng/chiều cao vùng ảnh phải lớn hơn 0.'
+    if (layout.slots.some((slot) => !Number.isFinite(Number(slot.x)) || !Number.isFinite(Number(slot.y)) || slot.width <= 0 || slot.height <= 0)) return 'Layout config không hợp lệ. Vui lòng kiểm tra x/y/width/height của từng vùng ảnh.'
     if (!overlayFile && !overlayUrl) return 'Vui lòng upload overlay image cho frame.'
     if (mode !== 'legacy' && !frameName.trim()) return 'Vui lòng nhập tên frame.'
     return ''
@@ -227,8 +301,9 @@ export function EventFrameEditorPage() {
         <p className="mt-1 text-sm text-slate-500">{event.name}</p>
         <div className="mt-4"><FrameLayoutEditor backgroundUrl={backgroundUrl} frameUrl={overlayUrl} layoutConfig={layout} renderMode={renderMode} showMock /></div>
         <div className="mt-4 grid gap-3 text-sm">
-          {backgroundUrl && renderMode === FRAME_RENDER_MODES.backgroundOverlay ? <img alt="Preview background" className="max-h-36 rounded-xl border object-contain" src={backgroundUrl} /> : null}
-          {overlayUrl ? <img alt="Preview overlay" className="max-h-36 rounded-xl border object-contain" src={overlayUrl} /> : null}
+          {backgroundUrl && renderMode === FRAME_RENDER_MODES.backgroundOverlay ? <div className="rounded-2xl border p-2"><p className="mb-1 font-bold">Background {backgroundMeta ? `· ${backgroundMeta.width}x${backgroundMeta.height}` : ''}</p><img alt="Preview background" className="max-h-36 rounded-xl object-contain" src={backgroundUrl} /></div> : null}
+          {overlayUrl ? <div className="rounded-2xl border p-2"><p className="mb-1 font-bold">Overlay {overlayMeta ? `· ${overlayMeta.width}x${overlayMeta.height}` : ''}</p><img alt="Preview overlay" className="max-h-36 rounded-xl object-contain" src={overlayUrl} /></div> : null}
+          {assetWarnings.map((warning) => <p className="rounded-2xl bg-amber-50 p-3 font-bold text-amber-700" key={warning}>{warning}</p>)}
         </div>
       </article>
 
@@ -243,13 +318,13 @@ export function EventFrameEditorPage() {
           <div className="mb-4 grid gap-3 sm:grid-cols-2">
             <label className="text-sm font-bold">Tên frame<input className="mt-1 w-full rounded-lg border px-3 py-2" onChange={(e) => setFrameName(e.target.value)} value={frameName} /></label>
             <label className="inline-flex items-center gap-2 self-end text-sm font-bold"><input checked={setAsDefault} onChange={(e) => setSetAsDefault(e.target.checked)} type="checkbox" /> Đặt làm frame mặc định</label>
-            <label className="text-sm font-bold">Kiểu render<select className="mt-1 w-full rounded-lg border px-3 py-2" onChange={(event) => setRenderMode(event.target.value)} value={renderMode}><option value={FRAME_RENDER_MODES.overlayOnly}>Chỉ overlay</option><option value={FRAME_RENDER_MODES.backgroundOverlay}>Background + overlay</option></select></label>
+            <label className="text-sm font-bold">Kiểu render<select className="mt-1 w-full rounded-lg border px-3 py-2" onChange={(event) => { const nextMode = event.target.value; setRenderMode(nextMode); setAssetWarnings(buildAssetWarnings({ backgroundMeta, overlayMeta, renderMode: nextMode })) }} value={renderMode}><option value={FRAME_RENDER_MODES.overlayOnly}>Chỉ overlay</option><option value={FRAME_RENDER_MODES.backgroundOverlay}>Background + overlay</option></select></label>
           </div>
         ) : null}
 
         <div className="mb-4 grid gap-3 sm:grid-cols-2">
           {renderMode === FRAME_RENDER_MODES.backgroundOverlay ? <label className="grid gap-2 text-sm font-bold">Upload background image<input accept="image/png,image/webp,image/jpeg" className="rounded-lg border px-3 py-2" onChange={(e) => onUploadBackground(e.target.files?.[0])} type="file" /></label> : null}
-          <label className="grid gap-2 text-sm font-bold">Upload overlay image<input accept="image/png,image/webp,image/jpeg" className="rounded-lg border px-3 py-2" onChange={(e) => onUploadOverlay(e.target.files?.[0])} type="file" /></label>
+          <label className="grid gap-2 text-sm font-bold">Upload overlay image<input accept="image/png,image/webp" className="rounded-lg border px-3 py-2" onChange={(e) => onUploadOverlay(e.target.files?.[0])} type="file" /></label>
         </div>
 
         <p className="mb-4 text-sm text-slate-500">Preview mô phỏng đúng thứ tự lớp: background → ảnh mẫu → overlay. Giá trị slot lưu theo kích thước canvas thật.</p>

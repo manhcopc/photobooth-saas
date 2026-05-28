@@ -91,6 +91,14 @@ export const composeFinalCanvas = async (photos, frameOrLayout) => {
   return canvas
 }
 
+export const composeFinalImage = async (photos, frameOrLayout) => {
+  const canvas = await composeFinalCanvas(photos, frameOrLayout)
+  const dataUrl = canvas.toDataURL('image/png')
+  canvas.width = 0
+  canvas.height = 0
+  return dataUrl
+}
+
 
 export const composeFinalImage = async (photos, layoutConfig) => {
   const canvas = await composeFinalCanvas(photos, layoutConfig)
