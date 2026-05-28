@@ -16,11 +16,13 @@
 
 html {
   min-height: 100%;
+  min-height: 100dvh;
   background: #fdf2f8;
 }
 
 body {
   min-height: 100%;
+  min-height: 100dvh;
   margin: 0;
 }
 
