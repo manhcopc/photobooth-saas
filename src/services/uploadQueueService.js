@@ -73,7 +73,7 @@ const patchLocalOutput = async (localOutputId, patch) => {
   await writeLocalOutputs(nextOutputs)
 }
 
-export const enqueueFinalOutput = async ({ event, sessionId, optimizedImage }) => {
+export const enqueueFinalOutput = async ({ event, sessionId, optimizedImage, selectedFrame }) => {
   const now = new Date().toISOString()
   const localOutputId = createId('local-output')
   const queueItem = {
@@ -89,6 +89,8 @@ export const enqueueFinalOutput = async ({ event, sessionId, optimizedImage }) =
     width: optimizedImage.width,
     height: optimizedImage.height,
     localOutputId,
+    selectedFrameId: selectedFrame?.id || null,
+    selectedFrameName: selectedFrame?.name || 'Khung mặc định',
     status: UPLOAD_QUEUE_STATUSES.pending,
     retryCount: 0,
     errorMessage: '',
@@ -111,6 +113,8 @@ export const enqueueFinalOutput = async ({ event, sessionId, optimizedImage }) =
     width: optimizedImage.width,
     height: optimizedImage.height,
     queueItemId: queueItem.id,
+    selectedFrameId: queueItem.selectedFrameId,
+    selectedFrameName: queueItem.selectedFrameName,
     status: UPLOAD_QUEUE_STATUSES.pending,
     retryCount: 0,
     errorMessage: '',

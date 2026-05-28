@@ -8,6 +8,7 @@ import { getEventAnalytics } from '../../services/analyticsService'
 import { deleteEvent, getEventBySlug, updateEvent, uploadEventFrame } from '../../services/eventService'
 import { getCloudFinalOutputsByEventId } from '../../services/supabaseGalleryService'
 import { getPublicEventUrl } from '../../utils/getPublicEventUrl'
+import { deleteEventFrame, getFramesWithLegacyFallback, migrateLegacyFrameToEventFrames, setDefaultFrame, updateEventFrame } from '../../services/eventFrameService'
 
 export function EventDetailPage() {
   const { slug } = useParams()
@@ -20,6 +21,7 @@ export function EventDetailPage() {
   const [saving, setSaving] = useState(false)
   const [message, setMessage] = useState('')
   const [analytics, setAnalytics] = useState(null)
+  const [frames, setFrames] = useState([])
 
   useEffect(() => {
     let mounted = true
@@ -42,6 +44,8 @@ export function EventDetailPage() {
       if (storedEvent) {
         const eventAnalytics = await getEventAnalytics(storedEvent.id).catch(() => null)
         if (mounted) setAnalytics(eventAnalytics)
+        const eventFrames = await getFramesWithLegacyFallback(storedEvent).catch(() => [])
+        if (mounted) setFrames(eventFrames)
       }
       setLoading(false)
     }
@@ -106,6 +110,7 @@ export function EventDetailPage() {
   if (!event || !form) return <div className="rounded-3xl bg-white p-10 text-center font-bold text-slate-600">Không tìm thấy sự kiện.</div>
 
   const eventUrl = getPublicEventUrl(event.slug)
+  const reloadFrames = async () => setFrames(await getFramesWithLegacyFallback(event).catch(() => []))
 
   return (
     <section className="grid gap-6 lg:grid-cols-[1fr_380px]">
@@ -124,6 +129,28 @@ export function EventDetailPage() {
           <a className="inline-flex items-center justify-center gap-2 rounded-2xl bg-purple-600 px-5 py-3 font-bold text-white" href={eventUrl} rel="noreferrer" target="_blank"><ExternalLink size={18} /> Mở event page</a>
           <Link className="inline-flex items-center justify-center gap-2 rounded-2xl bg-purple-50 px-5 py-3 font-bold text-purple-700" to={`/admin/events/${event.slug}/gallery`}><Images size={18} /> Xem gallery ({images.length})</Link>
           <Link className="inline-flex items-center justify-center gap-2 rounded-2xl bg-slate-100 px-5 py-3 font-bold text-slate-700 sm:col-span-2" to={`/admin/events/${event.slug}/frame-editor`}>Chỉnh khung & bố cục</Link>
+        </div>
+        <div className="mt-8 rounded-3xl bg-slate-50 p-4">
+          <div className="mb-3 flex items-center justify-between">
+            <h3 className="text-xl font-black">Khung ảnh</h3>
+            <Link className="rounded-xl bg-purple-600 px-3 py-2 text-sm font-bold text-white" to={`/admin/events/${event.slug}/frame-editor`}>Thêm frame</Link>
+          </div>
+          <div className="grid gap-3 md:grid-cols-2">
+            {frames.map((frame) => (
+              <article className="rounded-2xl bg-white p-3" key={frame.id}>
+                <img alt={frame.name} className="aspect-[3/4] w-full rounded-xl object-cover" src={frame.previewUrl || frame.frameUrl} />
+                <p className="mt-2 font-black">{frame.name}</p>
+                <p className="text-xs font-semibold text-slate-500">{frame.isDefault ? 'Mặc định' : ''} · {frame.isActive ? 'Đang bật' : 'Đã tắt'}</p>
+                <div className="mt-2 flex flex-wrap gap-2 text-xs font-bold">
+                  <Link className="rounded-lg bg-purple-50 px-2 py-1 text-purple-700" to={`/admin/events/${event.slug}/frame-editor?frameId=${frame.id}`}>Chỉnh bố cục</Link>
+                  {!frame.isLegacy ? <button className="rounded-lg bg-slate-100 px-2 py-1" onClick={async () => { await setDefaultFrame(event.id, frame.id); await reloadFrames() }} type="button">Đặt mặc định</button> : null}
+                  {!frame.isLegacy ? <button className="rounded-lg bg-slate-100 px-2 py-1" onClick={async () => { await updateEventFrame(frame.id, { ...frame, isActive: !frame.isActive }); await reloadFrames() }} type="button">{frame.isActive ? 'Tắt' : 'Bật'}</button> : null}
+                  {!frame.isLegacy ? <button className="rounded-lg bg-red-50 px-2 py-1 text-red-700" onClick={async () => { await deleteEventFrame(frame.id); await reloadFrames() }} type="button">Xóa</button> : null}
+                </div>
+              </article>
+            ))}
+          </div>
+          {frames.some((f) => f.isLegacy) ? <button className="mt-3 rounded-xl bg-amber-100 px-3 py-2 text-sm font-bold text-amber-800" onClick={async () => { await migrateLegacyFrameToEventFrames(event); await reloadFrames() }} type="button">Chuyển frame cũ sang hệ thống nhiều frame</button> : null}
         </div>
         <div className="mt-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
           <div className="rounded-2xl bg-slate-50 p-4"><p className="text-xs font-bold uppercase text-slate-500">Tổng ảnh</p><p className="mt-1 text-2xl font-black text-slate-900">{analytics?.totalImages ?? 0}</p></div>

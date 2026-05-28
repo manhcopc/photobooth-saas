@@ -18,6 +18,8 @@ export const normalizeFinalOutput = (output) => ({
   height: output.height,
   uploadStatus: output.upload_status || output.uploadStatus || 'success',
   createdAt: output.created_at || output.createdAt,
+  frameId: output.frame_id || output.frameId || null,
+  frameName: output.frame_name || output.frameName || 'Khung mặc định',
 })
 
 export const getFinalOutputs = async (eventId) => {
@@ -95,6 +97,8 @@ export const uploadFinalOutputToSupabase = async (queueItem) => {
     width,
     height,
     upload_status: 'success',
+    frame_id: queueItem.selectedFrameId && queueItem.selectedFrameId !== 'legacy-default' ? queueItem.selectedFrameId : null,
+    frame_name: queueItem.selectedFrameName || 'Khung mặc định',
     created_at: queueItem.createdAt,
   }
   const { data } = await supabase.from(FINAL_OUTPUTS_TABLE).upsert(metadata)

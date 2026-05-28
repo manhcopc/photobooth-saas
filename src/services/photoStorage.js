@@ -2,6 +2,7 @@ import { STORAGE_KEYS } from '../store/keys'
 import { readStorage, removeStorage, writeStorage } from '../utils/storage'
 
 const buildSessionKey = (eventId) => `${STORAGE_KEYS.activeSessions}:${eventId}`
+const buildSessionFrameKey = (eventId, sessionId) => `${STORAGE_KEYS.activeSessions}:${eventId}:${sessionId}:frame`
 const buildCaptureKey = (eventId, sessionId) => `${STORAGE_KEYS.captures}:${eventId}:${sessionId}`
 const buildSelectedKey = (eventId, sessionId) => `${STORAGE_KEYS.selectedPhotos}:${eventId}:${sessionId}`
 
@@ -51,4 +52,15 @@ export const saveSelectedPhotos = async ({ eventId, sessionId, photos }) => {
   const safePhotos = Array.isArray(photos) ? photos : []
   await writeStorage(buildSelectedKey(eventId, sessionId), safePhotos)
   return safePhotos
+}
+
+export const saveSelectedFrame = async ({ eventId, sessionId, frame }) => {
+  if (!eventId || !sessionId) return null
+  await writeStorage(buildSessionFrameKey(eventId, sessionId), frame)
+  return frame
+}
+
+export const getSelectedFrame = async ({ eventId, sessionId }) => {
+  if (!eventId || !sessionId) return null
+  return readStorage(buildSessionFrameKey(eventId, sessionId), null)
 }

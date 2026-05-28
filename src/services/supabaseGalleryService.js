@@ -20,10 +20,11 @@ export const mapCloudOutputToGalleryItem = (output) => ({
   width: output.width,
   height: output.height,
   downloadCount: output.download_count || output.downloadCount || 0,
+  frameName: output.frame_name || output.frameName || 'Khung mặc định',
 })
 
 export const getCloudFinalOutputsByEventId = async (eventId) => {
-  const { data } = await supabase.from(FINAL_OUTPUTS_TABLE).selectByEventId(eventId, 'id,event_id,session_id,image_url,thumbnail_url,file_size,thumbnail_size,mime_type,width,height,created_at,download_count')
+  const { data } = await supabase.from(FINAL_OUTPUTS_TABLE).selectByEventId(eventId, 'id,event_id,session_id,image_url,thumbnail_url,file_size,thumbnail_size,mime_type,width,height,created_at,download_count,frame_name')
   return Array.isArray(data) ? data.map(mapCloudOutputToGalleryItem) : []
 }
 

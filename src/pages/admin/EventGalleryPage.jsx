@@ -230,7 +230,7 @@ export function EventGalleryPage() {
                 <div className="absolute left-2 top-2"><SyncStatusBadge status={image.status} /></div>
               </button>
               <div className="mt-2 flex items-center justify-between gap-2 px-1 text-xs text-slate-500">
-                <span>{new Date(image.createdAt).toLocaleString('vi-VN')}</span>
+                <div><span>{new Date(image.createdAt).toLocaleString('vi-VN')}</span><p className="text-[10px]">Khung: {image.frameName || 'Khung mặc định'}</p></div>
                 <button className="rounded-xl bg-purple-50 p-2 text-purple-700" onClick={() => downloadImage(image)} type="button"><Download size={16} /></button>
               </div>
               {image.status === UPLOAD_QUEUE_STATUSES.failed ? (
@@ -249,7 +249,7 @@ export function EventGalleryPage() {
             <div className="flex items-start justify-between gap-3">
               <div>
                 <h2 className="text-xl font-black text-slate-950">Ảnh photobooth</h2>
-                <p className="mt-1 text-sm text-slate-500">{new Date(selectedImage.createdAt).toLocaleString('vi-VN')}</p>
+                <p className="mt-1 text-sm text-slate-500">{new Date(selectedImage.createdAt).toLocaleString('vi-VN')} · Khung: {selectedImage.frameName || 'Khung mặc định'}</p>
               </div>
               <button className="rounded-2xl bg-slate-100 p-2 text-slate-700" onClick={() => setSelectedImage(null)} type="button"><X size={20} /></button>
             </div>

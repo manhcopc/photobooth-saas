@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Link, useParams } from 'react-router-dom'
+import { Link, useParams, useSearchParams } from 'react-router-dom'
 import { FrameLayoutEditor } from '../../components/admin/FrameLayoutEditor'
 import { defaultFrameConfig } from '../../data/mockEvents'
 import { getEventBySlug, updateEvent, uploadEventFrame } from '../../services/eventService'
+import { createEventFrame, getFrameById, getFramesByEventId, updateEventFrame, uploadFrameAsset } from '../../services/eventFrameService'
 
 const createDefaultSlots = (width, height) => {
   const marginX = Math.round(width * 0.1)
@@ -22,11 +23,16 @@ const normalizeLayout = (layout, frameUrl) => {
 
 export function EventFrameEditorPage() {
   const { slug } = useParams()
+  const [searchParams] = useSearchParams()
+  const editingFrameId = searchParams.get('frameId')
   const [event, setEvent] = useState(null)
   const [layout, setLayout] = useState(normalizeLayout(defaultFrameConfig, defaultFrameConfig.overlaySrc))
   const [frameUrl, setFrameUrl] = useState(defaultFrameConfig.overlaySrc)
   const [message, setMessage] = useState('')
   const [saving, setSaving] = useState(false)
+  const [frameName, setFrameName] = useState('Frame mới')
+  const [setAsDefault, setSetAsDefault] = useState(false)
+  const [currentFrame, setCurrentFrame] = useState(null)
 
   useEffect(() => {
     let mounted = true
@@ -37,10 +43,19 @@ export function EventFrameEditorPage() {
       const nextFrameUrl = data.frameUrl || defaultFrameConfig.overlaySrc
       setFrameUrl(nextFrameUrl)
       setLayout(normalizeLayout(data.layoutConfig, nextFrameUrl))
+      if (editingFrameId) {
+        const frame = await getFrameById(editingFrameId)
+        if (frame) {
+          setCurrentFrame(frame)
+          setFrameName(frame.name)
+          setFrameUrl(frame.frameUrl)
+          setLayout(normalizeLayout(frame.layoutConfig, frame.frameUrl))
+        }
+      }
     }
     load()
     return () => { mounted = false }
-  }, [slug])
+  }, [editingFrameId, slug])
 
   const hasFrame = Boolean(frameUrl)
   const hasLayout = useMemo(() => Array.isArray(layout?.slots) && layout.slots.length === 3, [layout])
@@ -72,7 +87,11 @@ export function EventFrameEditorPage() {
     setSaving(true)
     try {
       const payload = { ...layout, canvas: { width: layout.canvas.width, height: layout.canvas.height }, outputWidth: layout.canvas.width, outputHeight: layout.canvas.height, overlaySrc: frameUrl || defaultFrameConfig.overlaySrc }
-      await updateEvent(event.id, { ...event, frameUrl, layoutConfig: payload })
+      if (currentFrame && !currentFrame.isLegacy) {
+        await updateEventFrame(currentFrame.id, { ...currentFrame, name: frameName, frameUrl, layoutConfig: payload, isDefault: setAsDefault || currentFrame.isDefault, isActive: currentFrame.isActive })
+      } else {
+        await updateEvent(event.id, { ...event, frameUrl, layoutConfig: payload })
+      }
       setMessage('Đã lưu bố cục thành công.')
     } catch (error) {
       setMessage(error.message || 'Không thể lưu bố cục.')
@@ -84,7 +103,7 @@ export function EventFrameEditorPage() {
     setSaving(true)
     setMessage('')
     try {
-      const nextFrameUrl = await uploadEventFrame({ eventSlug: event.slug, file })
+      const nextFrameUrl = currentFrame && !currentFrame.isLegacy ? await uploadFrameAsset({ eventSlug: event.slug, file }) : await uploadEventFrame({ eventSlug: event.slug, file })
       const dimension = await new Promise((resolve) => {
         const img = new Image()
         img.onload = () => resolve({ width: img.naturalWidth, height: img.naturalHeight })
@@ -97,7 +116,11 @@ export function EventFrameEditorPage() {
         if (!current?.slots?.length) next.slots = createDefaultSlots(dimension.width, dimension.height)
         return next
       })
-      await updateEvent(event.id, { ...event, frameUrl: nextFrameUrl, layoutConfig: { ...layout, overlaySrc: nextFrameUrl } })
+      if (currentFrame && !currentFrame.isLegacy) {
+        await updateEventFrame(currentFrame.id, { ...currentFrame, frameUrl: nextFrameUrl, layoutConfig: { ...layout, overlaySrc: nextFrameUrl }, name: frameName, isDefault: currentFrame.isDefault, isActive: currentFrame.isActive })
+      } else {
+        await updateEvent(event.id, { ...event, frameUrl: nextFrameUrl, layoutConfig: { ...layout, overlaySrc: nextFrameUrl } })
+      }
       setMessage('Đã upload khung ảnh thành công.')
     } catch (error) {
       setMessage(error.message || 'Upload khung ảnh thất bại.')
@@ -124,6 +147,17 @@ export function EventFrameEditorPage() {
           <label className="rounded-xl bg-purple-600 px-4 py-2 font-bold text-white">Upload frame<input accept="image/png,image/webp,image/jpeg" className="hidden" onChange={(e) => onUploadFrame(e.target.files?.[0])} type="file" /></label>
           <button className="rounded-xl bg-slate-200 px-4 py-2 font-bold" onClick={resetDefault} type="button">Đặt lại mặc định</button>
           <button className="rounded-xl bg-purple-600 px-4 py-2 font-bold text-white disabled:opacity-60" disabled={saving} onClick={saveLayout} type="button">{saving ? 'Đang lưu...' : 'Lưu bố cục'}</button>
+          {!editingFrameId ? <button className="rounded-xl bg-emerald-600 px-4 py-2 font-bold text-white" onClick={async () => {
+            if (!event || !frameUrl) return
+            const existing = await getFramesByEventId(event.id)
+            const created = await createEventFrame({ eventId: event.id, name: frameName, frameUrl, layoutConfig: layout, isDefault: setAsDefault || existing.length === 0, isActive: true, sortOrder: existing.length })
+            setCurrentFrame(created)
+            setMessage('Đã tạo frame mới.')
+          }} type="button">Lưu thành frame mới</button> : null}
+        </div>
+        <div className="mb-4 grid gap-2 sm:grid-cols-2">
+          <label className="text-sm font-bold">Tên frame<input className="mt-1 w-full rounded-lg border px-2 py-1" onChange={(e) => setFrameName(e.target.value)} value={frameName} /></label>
+          <label className="inline-flex items-center gap-2 self-end text-sm font-bold"><input checked={setAsDefault} onChange={(e) => setSetAsDefault(e.target.checked)} type="checkbox" /> Đặt làm frame mặc định</label>
         </div>
         <p className="mb-4 text-sm text-slate-500">Xem thử realtime theo tỉ lệ preview.</p>
         <div className="grid gap-4 md:grid-cols-3">
