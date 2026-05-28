@@ -2,13 +2,14 @@ import { ExternalLink, Images, Trash2, Upload } from 'lucide-react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { useEffect, useState } from 'react'
 import { QRCodeCard } from '../../components/admin/QRCodeCard'
+import { EventFramesSection } from '../../components/admin/EventFramesSection'
 import { Button } from '../../components/common/Button'
 import { defaultFrameConfig } from '../../data/mockEvents'
 import { getEventAnalytics } from '../../services/analyticsService'
 import { deleteEvent, getEventBySlug, updateEvent, uploadEventFrame } from '../../services/eventService'
 import { getCloudFinalOutputsByEventId } from '../../services/supabaseGalleryService'
 import { getPublicEventUrl } from '../../utils/getPublicEventUrl'
-import { deleteEventFrame, getFramesWithLegacyFallback, migrateLegacyFrameToEventFrames, setDefaultFrame, updateEventFrame } from '../../services/eventFrameService'
+import { deleteEventFrame, getFramesByEventId, migrateLegacyFrameToEventFrames, setDefaultFrame, updateEventFrame } from '../../services/eventFrameService'
 
 export function EventDetailPage() {
   const { slug } = useParams()
@@ -21,7 +22,8 @@ export function EventDetailPage() {
   const [saving, setSaving] = useState(false)
   const [message, setMessage] = useState('')
   const [analytics, setAnalytics] = useState(null)
-  const [frames, setFrames] = useState([])
+  const [eventFrames, setEventFrames] = useState([])
+  const [frameMessage, setFrameMessage] = useState('')
 
   useEffect(() => {
     let mounted = true
@@ -44,8 +46,8 @@ export function EventDetailPage() {
       if (storedEvent) {
         const eventAnalytics = await getEventAnalytics(storedEvent.id).catch(() => null)
         if (mounted) setAnalytics(eventAnalytics)
-        const eventFrames = await getFramesWithLegacyFallback(storedEvent).catch(() => [])
-        if (mounted) setFrames(eventFrames)
+        const frames = await getFramesByEventId(storedEvent.id).catch(() => [])
+        if (mounted) setEventFrames(frames)
       }
       setLoading(false)
     }
@@ -110,7 +112,53 @@ export function EventDetailPage() {
   if (!event || !form) return <div className="rounded-3xl bg-white p-10 text-center font-bold text-slate-600">Không tìm thấy sự kiện.</div>
 
   const eventUrl = getPublicEventUrl(event.slug)
-  const reloadFrames = async () => setFrames(await getFramesWithLegacyFallback(event).catch(() => []))
+  const reloadFrames = async () => {
+    if (!event) return
+    setEventFrames(await getFramesByEventId(event.id).catch(() => []))
+  }
+
+  const setDefault = async (frame) => {
+    setFrameMessage('')
+    await setDefaultFrame(event.id, frame.id)
+    await reloadFrames()
+  }
+
+  const toggleFrame = async (frame) => {
+    setFrameMessage('')
+    const activeFrames = eventFrames.filter((item) => item.isActive)
+    if (frame.isActive && activeFrames.length <= 1) {
+      setFrameMessage('Cần ít nhất một frame đang bật cho sự kiện.')
+      return
+    }
+    if (frame.isDefault && frame.isActive) {
+      setFrameMessage('Không thể tắt frame mặc định. Hãy đặt frame khác làm mặc định trước.')
+      return
+    }
+    await updateEventFrame(frame.id, { ...frame, isActive: !frame.isActive })
+    await reloadFrames()
+  }
+
+  const removeFrame = async (frame) => {
+    setFrameMessage('')
+    if (eventFrames.length <= 1) {
+      setFrameMessage('Sự kiện cần ít nhất một frame.')
+      return
+    }
+    if (!window.confirm('Bạn chắc chắn muốn xóa frame này? File storage chưa được xóa tự động.')) return
+    const remaining = eventFrames.filter((item) => item.id !== frame.id)
+    await deleteEventFrame(frame.id)
+    if (frame.isDefault) {
+      const nextDefault = remaining.find((item) => item.isActive) || remaining[0]
+      if (nextDefault) await setDefaultFrame(event.id, nextDefault.id)
+    }
+    await reloadFrames()
+  }
+
+  const migrateLegacy = async () => {
+    setFrameMessage('')
+    await migrateLegacyFrameToEventFrames(event)
+    await reloadFrames()
+  }
 
   return (
     <section className="grid gap-6 lg:grid-cols-[1fr_380px]">
@@ -130,36 +178,20 @@ export function EventDetailPage() {
           <Link className="inline-flex items-center justify-center gap-2 rounded-2xl bg-purple-50 px-5 py-3 font-bold text-purple-700" to={`/admin/events/${event.slug}/gallery`}><Images size={18} /> Xem gallery ({images.length})</Link>
           <Link className="inline-flex items-center justify-center gap-2 rounded-2xl bg-slate-100 px-5 py-3 font-bold text-slate-700 sm:col-span-2" to={`/admin/events/${event.slug}/frame-editor`}>Chỉnh khung & bố cục</Link>
         </div>
-        <div className="mt-8 rounded-3xl bg-slate-50 p-4">
-          <div className="mb-3 flex items-center justify-between">
-            <h3 className="text-xl font-black">Khung ảnh</h3>
-            <Link className="rounded-xl bg-purple-600 px-3 py-2 text-sm font-bold text-white" to={`/admin/events/${event.slug}/frame-editor`}>Thêm frame</Link>
-          </div>
-          <div className="grid gap-3 md:grid-cols-2">
-            {frames.map((frame) => (
-              <article className="rounded-2xl bg-white p-3" key={frame.id}>
-                <img alt={frame.name} className="aspect-[3/4] w-full rounded-xl object-cover" src={frame.previewUrl || frame.frameUrl} />
-                <p className="mt-2 font-black">{frame.name}</p>
-                <p className="text-xs font-semibold text-slate-500">{frame.isDefault ? 'Mặc định' : ''} · {frame.isActive ? 'Đang bật' : 'Đã tắt'}</p>
-                <div className="mt-2 flex flex-wrap gap-2 text-xs font-bold">
-                  <Link className="rounded-lg bg-purple-50 px-2 py-1 text-purple-700" to={`/admin/events/${event.slug}/frame-editor?frameId=${frame.id}`}>Chỉnh bố cục</Link>
-                  {!frame.isLegacy ? <button className="rounded-lg bg-slate-100 px-2 py-1" onClick={async () => { await setDefaultFrame(event.id, frame.id); await reloadFrames() }} type="button">Đặt mặc định</button> : null}
-                  {!frame.isLegacy ? <button className="rounded-lg bg-slate-100 px-2 py-1" onClick={async () => { await updateEventFrame(frame.id, { ...frame, isActive: !frame.isActive }); await reloadFrames() }} type="button">{frame.isActive ? 'Tắt' : 'Bật'}</button> : null}
-                  {!frame.isLegacy ? <button className="rounded-lg bg-red-50 px-2 py-1 text-red-700" onClick={async () => { await deleteEventFrame(frame.id); await reloadFrames() }} type="button">Xóa</button> : null}
-                </div>
-              </article>
-            ))}
-          </div>
-          {frames.some((f) => f.isLegacy) ? <button className="mt-3 rounded-xl bg-amber-100 px-3 py-2 text-sm font-bold text-amber-800" onClick={async () => { await migrateLegacyFrameToEventFrames(event); await reloadFrames() }} type="button">Chuyển frame cũ sang hệ thống nhiều frame</button> : null}
-        </div>
         <div className="mt-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
           <div className="rounded-2xl bg-slate-50 p-4"><p className="text-xs font-bold uppercase text-slate-500">Tổng ảnh</p><p className="mt-1 text-2xl font-black text-slate-900">{analytics?.totalImages ?? 0}</p></div>
           <div className="rounded-2xl bg-slate-50 p-4"><p className="text-xs font-bold uppercase text-slate-500">Lượt tải</p><p className="mt-1 text-2xl font-black text-slate-900">{analytics?.totalDownloads ?? 0}</p></div>
-          <div className="rounded-2xl bg-slate-50 p-4"><p className="text-xs font-bold uppercase text-slate-500">Ảnh đã đồng bộ</p><p className="mt-1 text-2xl font-black text-emerald-700">{analytics?.syncedCount ?? 0}</p></div>
           <div className="rounded-2xl bg-slate-50 p-4"><p className="text-xs font-bold uppercase text-slate-500">Ảnh chờ đồng bộ</p><p className="mt-1 text-2xl font-black text-amber-700">{analytics?.pendingCount ?? 0}</p></div>
-          <div className="rounded-2xl bg-slate-50 p-4"><p className="text-xs font-bold uppercase text-slate-500">Event đang hoạt động</p><p className="mt-1 text-2xl font-black text-slate-900">{event.status === 'active' ? 'Có' : 'Không'}</p></div>
-          <div className="rounded-2xl bg-slate-50 p-4"><p className="text-xs font-bold uppercase text-slate-500">Ảnh mới nhất</p><p className="mt-1 text-sm font-bold text-slate-700">{analytics?.latestImageAt ? new Date(analytics.latestImageAt).toLocaleString('vi-VN') : 'Chưa có dữ liệu'}</p></div>
         </div>
+        <EventFramesSection
+          event={event}
+          frames={eventFrames}
+          message={frameMessage}
+          onDelete={removeFrame}
+          onMigrateLegacy={migrateLegacy}
+          onSetDefault={setDefault}
+          onToggle={toggleFrame}
+        />
 
         <form className="mt-8 grid gap-4" onSubmit={save}>
           <h2 className="text-2xl font-black text-slate-950">Chỉnh sửa event</h2>

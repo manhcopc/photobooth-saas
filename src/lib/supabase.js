@@ -150,6 +150,18 @@ export const supabase = {
         const data = await parseResponse(response)
         return { data, error: null }
       },
+      async selectByColumnOrdered(column, value, columns = '*', orderColumns = []) {
+        assertSupabaseConfig()
+        const query = new URLSearchParams({ select: columns, [column]: `eq.${value}` })
+        orderColumns.forEach(({ column: orderColumn, ascending = true }) => {
+          query.append('order', `${orderColumn}.${ascending ? 'asc' : 'desc'}`)
+        })
+        const response = await fetch(`${supabaseUrl}/rest/v1/${tableName}?${query.toString()}`, {
+          headers: buildHeaders(),
+        })
+        const data = await parseResponse(response)
+        return { data, error: null }
+      },
       async updateById(id, payload) {
         assertSupabaseConfig()
         const query = new URLSearchParams({ id: `eq.${id}` })

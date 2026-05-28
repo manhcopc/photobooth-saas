@@ -1,4 +1,5 @@
 import { FINAL_OUTPUTS_TABLE, SUPABASE_FINAL_IMAGES_BUCKET, supabase } from '../lib/supabase'
+import { isUuid } from './eventFrameService'
 import { createThumbnailBlob, dataUrlToBlob, resizeImageBlob } from '../utils/imageOptimization'
 
 const sanitizePathSegment = (value) => String(value || 'unknown').replace(/[^a-zA-Z0-9-_]/g, '-')
@@ -97,7 +98,7 @@ export const uploadFinalOutputToSupabase = async (queueItem) => {
     width,
     height,
     upload_status: 'success',
-    frame_id: queueItem.selectedFrameId && queueItem.selectedFrameId !== 'legacy-default' ? queueItem.selectedFrameId : null,
+    frame_id: isUuid(queueItem.selectedFrameId) ? queueItem.selectedFrameId : null,
     frame_name: queueItem.selectedFrameName || 'Khung mặc định',
     created_at: queueItem.createdAt,
   }

@@ -33,6 +33,7 @@ export const mapLocalOutputToGalleryItem = (output, queueItem) => {
     mimeType: output.mimeType,
     width: output.width,
     height: output.height,
+    frameName: output.selectedFrameName || queueItem?.selectedFrameName || '',
   }
 }
 

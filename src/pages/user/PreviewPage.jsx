@@ -6,13 +6,12 @@ import { Button } from '../../components/common/Button'
 import { useCurrentEvent } from '../../hooks/useCurrentEvent'
 import { composeFinalCanvas } from '../../utils/canvas'
 import { optimizeFinalCanvas } from '../../utils/imageOptimization'
-import { getActiveSession, getSelectedPhotos } from '../../services/photoStorage'
+import { getActiveSession, getSelectedFrame, getSelectedPhotos, saveSelectedFrame } from '../../services/photoStorage'
 import { useUploadQueue } from '../../hooks/useUploadQueue'
 import { enqueueFinalOutput } from '../../services/uploadQueueService'
 import { EventNotFoundPage } from './EventNotFoundPage'
 import { EventInactivePage } from './EventInactivePage'
-import { getFramesWithLegacyFallback } from '../../services/eventFrameService'
-import { getSelectedFrame, saveSelectedFrame } from '../../services/photoStorage'
+import { getActiveFramesWithLegacyFallback } from '../../services/eventFrameService'
 
 export function PreviewPage() {
   const navigate = useNavigate()
@@ -27,6 +26,7 @@ export function PreviewPage() {
   const [queuedOutputId, setQueuedOutputId] = useState(null)
   const [frames, setFrames] = useState([])
   const [selectedFrame, setSelectedFrame] = useState(null)
+  const [frameError, setFrameError] = useState('')
   const { processQueue, retry } = useUploadQueue({ eventId: event?.id })
 
   useEffect(() => {
@@ -48,7 +48,13 @@ export function PreviewPage() {
         return
       }
 
-      const frameList = await getFramesWithLegacyFallback(event)
+      const frameList = await getActiveFramesWithLegacyFallback(event)
+      if (frameList.length === 0) {
+        if (!mounted) return
+        setFrameError('Sự kiện chưa có khung ảnh khả dụng.')
+        setLoading(false)
+        return
+      }
       const storedFrame = await getSelectedFrame({ eventId: event.id, sessionId: activeSessionId })
       const initialFrame = frameList.find((f) => f.id === storedFrame?.id) || frameList.find((f) => f.isDefault) || frameList[0]
       const canvas = await composeFinalCanvas(photos, initialFrame?.layoutConfig || event.layoutConfig)
@@ -131,6 +137,7 @@ export function PreviewPage() {
       <section className="px-5 pb-6 text-center">
         <h1 className="text-3xl font-black text-slate-950">Preview ảnh cuối</h1>
         <p className="mt-2 text-sm font-semibold text-slate-500">Canvas xuất ảnh WebP tối ưu cho mobile.</p>
+        {frameError ? <p className="mt-4 rounded-2xl bg-red-50 p-4 text-sm font-bold text-red-600">{frameError}</p> : null}
         <div className="mt-5 overflow-hidden rounded-[2rem] bg-purple-50 p-3 shadow-inner">
           {loading ? <div className="grid aspect-[2/3] place-items-center text-purple-700"><WandSparkles className="animate-pulse" size={48} /></div> : <img alt="Ảnh photobooth cuối" className="aspect-[2/3] w-full rounded-[1.5rem] object-cover" src={finalImageUrl} />}
         </div>

@@ -39,6 +39,8 @@ function App() {
             <Route path="events/new" element={<CreateEventPage />} />
             <Route path="events/:slug" element={<EventDetailPage />} />
             <Route path="events/:slug/frame-editor" element={<EventFrameEditorPage />} />
+            <Route path="events/:slug/frames/new" element={<EventFrameEditorPage />} />
+            <Route path="events/:slug/frames/:frameId/editor" element={<EventFrameEditorPage />} />
             <Route path="events/:slug/gallery" element={<EventGalleryPage />} />
           </Route>
         </Route>
