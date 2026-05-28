@@ -7,6 +7,7 @@ import { getEventBySlug } from '../../services/eventStorage'
 import { getLocalGalleryItemsByEventId, revokeLocalGalleryItemUrls } from '../../services/localGalleryService'
 import { getCloudFinalOutputsByEventId, incrementDownloadCount } from '../../services/supabaseGalleryService'
 import { retryUploadQueueItem, UPLOAD_QUEUE_STATUSES } from '../../services/uploadQueueService'
+import { createZipBlob } from '../../utils/zip'
 
 const LOCAL_FALLBACK_MESSAGE = 'Đang hiển thị dữ liệu cục bộ do mất kết nối hoặc lỗi tải dữ liệu cloud'
 
@@ -68,6 +69,7 @@ export function EventGalleryPage() {
   const [retryingId, setRetryingId] = useState('')
   const [galleryMessage, setGalleryMessage] = useState('')
   const [selectedImage, setSelectedImage] = useState(null)
+  const [downloadingZip, setDownloadingZip] = useState(false)
   const { queue, refreshQueue } = useUploadQueue({ eventId: event?.id })
 
   const loadGallery = useCallback(async () => {
@@ -145,6 +147,49 @@ export function EventGalleryPage() {
     if (image.source === 'cloud') await incrementDownloadCount(image.id, image.downloadCount)
   }
 
+  const downloadZip = async () => {
+    if (!event || downloadingZip) return
+    if (galleryItems.length === 0) {
+      setGalleryMessage('Chưa có ảnh để tải')
+      return
+    }
+    setDownloadingZip(true)
+    setGalleryMessage(galleryItems.length > 200 ? 'Gallery có nhiều ảnh, quá trình tạo ZIP có thể mất thời gian.' : 'Đang chuẩn bị file ZIP...')
+    const files = []
+    const safeSlug = String(event.slug || 'event').replace(/[^a-zA-Z0-9-_]/g, '-')
+
+    for (let index = 0; index < galleryItems.length; index += 1) {
+      const image = galleryItems[index]
+      const sourceUrl = image.downloadUrl || image.finalUrl || image.imageUrl
+      if (!sourceUrl) continue
+      try {
+        const response = await fetch(sourceUrl)
+        if (!response.ok) continue
+        const bytes = new Uint8Array(await response.arrayBuffer())
+        const stamp = image.createdAt ? new Date(image.createdAt).toISOString().slice(0, 10) : null
+        const filename = stamp ? `photobooth-${stamp}-${String(index + 1).padStart(3, '0')}.webp` : `photobooth-${String(index + 1).padStart(3, '0')}.webp`
+        files.push({ path: `${safeSlug}/${filename}`, bytes, date: image.createdAt ? new Date(image.createdAt) : new Date() })
+      } catch {
+        // skip failed image download and continue
+      }
+    }
+
+    if (files.length === 0) {
+      setGalleryMessage('Không thể tải ảnh nào để tạo ZIP. Vui lòng thử lại.')
+      setDownloadingZip(false)
+      return
+    }
+
+    const zipBlob = await createZipBlob(files)
+    const link = document.createElement('a')
+    link.href = URL.createObjectURL(zipBlob)
+    link.download = `photobooth-${safeSlug}-gallery.zip`
+    link.click()
+    URL.revokeObjectURL(link.href)
+    setGalleryMessage(`Đã tạo ZIP với ${files.length}/${galleryItems.length} ảnh.`)
+    setDownloadingZip(false)
+  }
+
   if (loading) {
     return (
       <section>
@@ -166,7 +211,10 @@ export function EventGalleryPage() {
           <h1 className="text-3xl font-black text-slate-950">Gallery: {event.name}</h1>
           <p className="mt-2 text-slate-500">{galleryItems.length} ảnh final · Cloud-first Supabase, fallback local IndexedDB.</p>
         </div>
-        <Link className="rounded-2xl bg-purple-50 px-5 py-3 font-bold text-purple-700" to={`/admin/events/${event.slug}`}>Quay lại chi tiết</Link>
+        <div className="flex flex-wrap gap-2">
+          <button className="rounded-2xl bg-purple-600 px-5 py-3 font-bold text-white disabled:opacity-60" disabled={downloadingZip} onClick={downloadZip} type="button">{downloadingZip ? 'Đang chuẩn bị ZIP...' : 'Tải toàn bộ ảnh ZIP'}</button>
+          <Link className="rounded-2xl bg-purple-50 px-5 py-3 font-bold text-purple-700" to={`/admin/events/${event.slug}`}>Quay lại chi tiết</Link>
+        </div>
       </div>
       {galleryMessage ? <p className="mb-4 rounded-2xl bg-amber-50 p-4 text-sm font-bold text-amber-700">{galleryMessage}</p> : null}
       {galleryItems.length === 0 ? (

@@ -7,8 +7,18 @@ const EVENT_COLUMNS = '*'
 
 const normalizeEvent = (event) => {
   if (!event) return null
-  const layoutConfig = event.layout_config || event.layoutConfig || event.frameConfig || defaultFrameConfig
-  const frameUrl = event.frame_url || event.frameUrl || layoutConfig?.overlaySrc || defaultFrameConfig.overlaySrc
+  const rawLayout = event.layout_config || event.layoutConfig || event.frameConfig || defaultFrameConfig
+  const frameUrl = event.frame_url || event.frameUrl || rawLayout?.overlaySrc || defaultFrameConfig.overlaySrc
+  const canvasWidth = rawLayout?.canvas?.width || rawLayout?.outputWidth || defaultFrameConfig.outputWidth
+  const canvasHeight = rawLayout?.canvas?.height || rawLayout?.outputHeight || defaultFrameConfig.outputHeight
+  const layoutConfig = {
+    ...defaultFrameConfig,
+    ...rawLayout,
+    canvas: { width: canvasWidth, height: canvasHeight },
+    outputWidth: canvasWidth,
+    outputHeight: canvasHeight,
+    overlaySrc: frameUrl,
+  }
 
   return {
     id: event.id,
@@ -18,10 +28,7 @@ const normalizeEvent = (event) => {
     date: event.event_date || event.date || '',
     eventDate: event.event_date || event.date || '',
     frameUrl,
-    layoutConfig: {
-      ...layoutConfig,
-      overlaySrc: frameUrl,
-    },
+    layoutConfig,
     status: event.status || 'active',
     createdAt: event.created_at || event.createdAt,
     updatedAt: event.updated_at || event.updatedAt,
@@ -30,7 +37,16 @@ const normalizeEvent = (event) => {
 
 const toDbPayload = (payload) => {
   const frameUrl = payload.frameUrl || payload.frame_url || payload.layoutConfig?.overlaySrc || defaultFrameConfig.overlaySrc
-  const layoutConfig = payload.layoutConfig || payload.layout_config || defaultFrameConfig
+  const rawLayout = payload.layoutConfig || payload.layout_config || defaultFrameConfig
+  const canvasWidth = rawLayout?.canvas?.width || rawLayout?.outputWidth || defaultFrameConfig.outputWidth
+  const canvasHeight = rawLayout?.canvas?.height || rawLayout?.outputHeight || defaultFrameConfig.outputHeight
+  const layoutConfig = {
+    ...defaultFrameConfig,
+    ...rawLayout,
+    canvas: { width: canvasWidth, height: canvasHeight },
+    outputWidth: canvasWidth,
+    outputHeight: canvasHeight,
+  }
   return {
     name: payload.name,
     slug: payload.slug,

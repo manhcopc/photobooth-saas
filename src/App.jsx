@@ -13,6 +13,7 @@ import { EventsListPage } from './pages/admin/EventsListPage'
 import { CreateEventPage } from './pages/admin/CreateEventPage'
 import { EventDetailPage } from './pages/admin/EventDetailPage'
 import { EventGalleryPage } from './pages/admin/EventGalleryPage'
+import { EventFrameEditorPage } from './pages/admin/EventFrameEditorPage'
 import { AdminLoginPage } from './pages/admin/AdminLoginPage'
 import { useUploadQueue } from './hooks/useUploadQueue'
 
@@ -37,6 +38,7 @@ function App() {
             <Route path="events" element={<EventsListPage />} />
             <Route path="events/new" element={<CreateEventPage />} />
             <Route path="events/:slug" element={<EventDetailPage />} />
+            <Route path="events/:slug/frame-editor" element={<EventFrameEditorPage />} />
             <Route path="events/:slug/gallery" element={<EventGalleryPage />} />
           </Route>
         </Route>

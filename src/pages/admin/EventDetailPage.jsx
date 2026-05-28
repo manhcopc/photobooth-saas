@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { QRCodeCard } from '../../components/admin/QRCodeCard'
 import { Button } from '../../components/common/Button'
 import { defaultFrameConfig } from '../../data/mockEvents'
+import { getEventAnalytics } from '../../services/analyticsService'
 import { deleteEvent, getEventBySlug, updateEvent, uploadEventFrame } from '../../services/eventService'
 import { getCloudFinalOutputsByEventId } from '../../services/supabaseGalleryService'
 import { getPublicEventUrl } from '../../utils/getPublicEventUrl'
@@ -18,6 +19,7 @@ export function EventDetailPage() {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [message, setMessage] = useState('')
+  const [analytics, setAnalytics] = useState(null)
 
   useEffect(() => {
     let mounted = true
@@ -37,6 +39,10 @@ export function EventDetailPage() {
         frameUrl: storedEvent.frameUrl || defaultFrameConfig.overlaySrc,
         layoutConfig: JSON.stringify(storedEvent.layoutConfig || defaultFrameConfig, null, 2),
       } : null)
+      if (storedEvent) {
+        const eventAnalytics = await getEventAnalytics(storedEvent.id).catch(() => null)
+        if (mounted) setAnalytics(eventAnalytics)
+      }
       setLoading(false)
     }
 
@@ -117,6 +123,15 @@ export function EventDetailPage() {
         <div className="mt-6 grid gap-3 sm:grid-cols-2">
           <a className="inline-flex items-center justify-center gap-2 rounded-2xl bg-purple-600 px-5 py-3 font-bold text-white" href={eventUrl} rel="noreferrer" target="_blank"><ExternalLink size={18} /> Mở event page</a>
           <Link className="inline-flex items-center justify-center gap-2 rounded-2xl bg-purple-50 px-5 py-3 font-bold text-purple-700" to={`/admin/events/${event.slug}/gallery`}><Images size={18} /> Xem gallery ({images.length})</Link>
+          <Link className="inline-flex items-center justify-center gap-2 rounded-2xl bg-slate-100 px-5 py-3 font-bold text-slate-700 sm:col-span-2" to={`/admin/events/${event.slug}/frame-editor`}>Chỉnh khung & bố cục</Link>
+        </div>
+        <div className="mt-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+          <div className="rounded-2xl bg-slate-50 p-4"><p className="text-xs font-bold uppercase text-slate-500">Tổng ảnh</p><p className="mt-1 text-2xl font-black text-slate-900">{analytics?.totalImages ?? 0}</p></div>
+          <div className="rounded-2xl bg-slate-50 p-4"><p className="text-xs font-bold uppercase text-slate-500">Lượt tải</p><p className="mt-1 text-2xl font-black text-slate-900">{analytics?.totalDownloads ?? 0}</p></div>
+          <div className="rounded-2xl bg-slate-50 p-4"><p className="text-xs font-bold uppercase text-slate-500">Ảnh đã đồng bộ</p><p className="mt-1 text-2xl font-black text-emerald-700">{analytics?.syncedCount ?? 0}</p></div>
+          <div className="rounded-2xl bg-slate-50 p-4"><p className="text-xs font-bold uppercase text-slate-500">Ảnh chờ đồng bộ</p><p className="mt-1 text-2xl font-black text-amber-700">{analytics?.pendingCount ?? 0}</p></div>
+          <div className="rounded-2xl bg-slate-50 p-4"><p className="text-xs font-bold uppercase text-slate-500">Event đang hoạt động</p><p className="mt-1 text-2xl font-black text-slate-900">{event.status === 'active' ? 'Có' : 'Không'}</p></div>
+          <div className="rounded-2xl bg-slate-50 p-4"><p className="text-xs font-bold uppercase text-slate-500">Ảnh mới nhất</p><p className="mt-1 text-sm font-bold text-slate-700">{analytics?.latestImageAt ? new Date(analytics.latestImageAt).toLocaleString('vi-VN') : 'Chưa có dữ liệu'}</p></div>
         </div>
 
         <form className="mt-8 grid gap-4" onSubmit={save}>

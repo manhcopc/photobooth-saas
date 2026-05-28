@@ -2,12 +2,10 @@ import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { EventCard } from '../../components/admin/EventCard'
 import { StatCard } from '../../components/admin/StatCard'
-import { getEvents } from '../../services/eventService'
-import { getFinalOutputs } from '../../services/finalOutputService'
+import { getDashboardAnalytics } from '../../services/analyticsService'
 
 export function DashboardPage() {
-  const [events, setEvents] = useState([])
-  const [images, setImages] = useState([])
+  const [analytics, setAnalytics] = useState(null)
   const [error, setError] = useState('')
 
   useEffect(() => {
@@ -15,10 +13,10 @@ export function DashboardPage() {
 
     const loadDashboard = async () => {
       try {
-        const [storedEvents, storedImages] = await Promise.all([getEvents(), getFinalOutputs().catch(() => [])])
+        const data = await getDashboardAnalytics()
         if (!mounted) return
-        setEvents(storedEvents)
-        setImages(storedImages)
+        setAnalytics(data)
+        setError('')
       } catch (loadError) {
         if (mounted) setError(loadError.message || 'Không thể tải dashboard.')
       }
@@ -31,15 +29,17 @@ export function DashboardPage() {
     }
   }, [])
 
-  const countImagesForEvent = (eventId) => images.filter((image) => image.eventId === eventId).length
+  const recentEvents = analytics?.recentEvents || []
+  const topEvent = analytics?.topEvent
 
   return (
     <div className="space-y-6">
       {error ? <p className="rounded-2xl bg-red-50 p-4 text-sm font-bold text-red-600">{error}</p> : null}
-      <section className="grid gap-4 md:grid-cols-3">
-        <StatCard helper="Supabase events" label="Tổng events" value={events.length} />
-        <StatCard helper="Ảnh final trên Supabase" label="Gallery" value={images.length} />
-        <StatCard helper="Auth + CRUD thật" label="Trạng thái" value="Prod" />
+      <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+        <StatCard helper="Supabase events" label="Tổng events" value={analytics?.totalEvents ?? 0} />
+        <StatCard helper="Đang active" label="Event active" value={analytics?.totalActiveEvents ?? 0} />
+        <StatCard helper="Ảnh final cloud" label="Tổng ảnh final" value={analytics?.totalFinalImages ?? 0} />
+        <StatCard helper="download_count" label="Tổng lượt tải" value={analytics?.totalDownloads ?? 0} />
       </section>
       <section className="rounded-3xl bg-gradient-to-r from-pink-500 to-purple-700 p-6 text-white shadow-lg shadow-purple-100">
         <h1 className="text-3xl font-black">Quản lý photobooth web app</h1>
@@ -49,8 +49,19 @@ export function DashboardPage() {
       <section>
         <h2 className="mb-4 text-2xl font-black">Events gần đây</h2>
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-          {events.slice(0, 3).map((event) => <EventCard event={event} imageCount={countImagesForEvent(event.id)} key={event.id} />)}
+          {recentEvents.slice(0, 3).map((event) => <EventCard event={event} imageCount={topEvent?.id === event.id ? topEvent.outputCount : 0} key={event.id} />)}
         </div>
+      </section>
+      <section className="grid gap-4 lg:grid-cols-2">
+        <article className="rounded-3xl bg-white p-5 shadow-sm ring-1 ring-slate-100">
+          <h3 className="text-xl font-black text-slate-900">Event có nhiều ảnh nhất</h3>
+          {topEvent ? (
+            <div className="mt-3 space-y-1">
+              <p className="text-2xl font-black text-purple-700">{topEvent.name}</p>
+              <p className="text-sm font-semibold text-slate-600">/{topEvent.slug} · {topEvent.outputCount} ảnh · {topEvent.downloadCount} lượt tải</p>
+            </div>
+          ) : <p className="mt-3 text-sm font-semibold text-slate-500">Chưa có dữ liệu ảnh.</p>}
+        </article>
       </section>
     </div>
   )
