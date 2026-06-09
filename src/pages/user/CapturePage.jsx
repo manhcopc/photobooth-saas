@@ -6,7 +6,7 @@ import { Button } from '../../components/common/Button'
 import { useCamera } from '../../hooks/useCamera'
 import { useCurrentEvent } from '../../hooks/useCurrentEvent'
 import { getActiveSession, getCameraSettings, getCountdownSeconds, saveCameraSettings, saveCaptures } from '../../services/photoStorage'
-import { captureVideoFrame } from '../../utils/images'
+import { captureVideoFrameItem } from '../../utils/images'
 import { EventNotFoundPage } from './EventNotFoundPage'
 import { EventInactivePage } from './EventInactivePage'
 
@@ -74,11 +74,12 @@ export function CapturePage() {
   const capturePhoto = useCallback(() => {
     const video = videoRef.current
     if (!video) return
-    const dataUrl = captureVideoFrame(video, {
-      orientation: captureOrientation,
+    const captureItem = captureVideoFrameItem(video, {
+      cameraFacing: activeFacingMode,
+      captureOrientation,
       mirror: activeFacingMode === 'user',
     })
-    setPhotos((current) => [...current, dataUrl])
+    setPhotos((current) => [...current, captureItem])
   }, [activeFacingMode, captureOrientation, videoRef])
 
   const takeOne = useCallback(() => {

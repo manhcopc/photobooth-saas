@@ -1,3 +1,5 @@
+import { getPhotoSrc } from './photoItems'
+
 const loadImage = (src) =>
   new Promise((resolve, reject) => {
     if (!src) {
@@ -79,7 +81,7 @@ export const composeFinalCanvas = async (photos, frameOrLayout) => {
     if (background) context.drawImage(background, 0, 0, canvas.width, canvas.height)
   }
 
-  const images = await Promise.all(photos.map((photo) => loadImage(photo)))
+  const images = await Promise.all(photos.map((photo) => loadImage(getPhotoSrc(photo))))
   images.forEach((image, index) => {
     const slot = layoutConfig.slots?.[index]
     if (slot) drawImageCover(context, image, slot)

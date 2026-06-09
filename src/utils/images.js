@@ -16,7 +16,7 @@ const getCoverSourceRect = (sourceWidth, sourceHeight, targetWidth, targetHeight
   }
 }
 
-export const captureVideoFrame = (video, { orientation = 'portrait', mirror = true } = {}) => {
+const captureVideoFrameData = (video, { orientation = 'portrait', mirror = true } = {}) => {
   const sourceWidth = video.videoWidth || (orientation === 'landscape' ? 1280 : 720)
   const sourceHeight = video.videoHeight || (orientation === 'landscape' ? 720 : 1280)
   const width = orientation === 'landscape' ? 1280 : 720
@@ -33,5 +33,29 @@ export const captureVideoFrame = (video, { orientation = 'portrait', mirror = tr
   }
 
   context.drawImage(video, source.x, source.y, source.width, source.height, 0, 0, width, height)
-  return canvas.toDataURL(CAPTURE_IMAGE_TYPE, CAPTURE_IMAGE_QUALITY)
+  return {
+    dataUrl: canvas.toDataURL(CAPTURE_IMAGE_TYPE, CAPTURE_IMAGE_QUALITY),
+    width,
+    height,
+    aspectRatio: width / height,
+    orientation: width >= height ? 'landscape' : 'portrait',
+  }
 }
+
+export const captureVideoFrame = (video, options = {}) => captureVideoFrameData(video, options).dataUrl
+
+export const captureVideoFrameItem = (video, { cameraFacing = 'user', captureOrientation = 'portrait', mirror = true } = {}) => {
+  const captured = captureVideoFrameData(video, { orientation: captureOrientation, mirror })
+  return {
+    id: `capture-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    photoDataUrl: captured.dataUrl,
+    width: captured.width,
+    height: captured.height,
+    aspectRatio: captured.aspectRatio,
+    orientation: captured.orientation,
+    cameraFacing,
+    captureOrientation,
+    createdAt: new Date().toISOString(),
+  }
+}
+
