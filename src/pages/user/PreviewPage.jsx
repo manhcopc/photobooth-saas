@@ -6,7 +6,7 @@ import { Button } from '../../components/common/Button'
 import { useCurrentEvent } from '../../hooks/useCurrentEvent'
 import { composeFinalCanvas } from '../../utils/canvas'
 import { optimizeFinalCanvas } from '../../utils/imageOptimization'
-import { getActiveSession, getSelectedFrame, getSelectedPhotos, saveSelectedFrame } from '../../services/photoStorage'
+import { getActiveSession, getSelectedFrame, getSelectedPhotos, saveCameraSettings, saveSelectedFrame } from '../../services/photoStorage'
 import { useUploadQueue } from '../../hooks/useUploadQueue'
 import { enqueueFinalOutput } from '../../services/uploadQueueService'
 import { EventNotFoundPage } from './EventNotFoundPage'
@@ -121,7 +121,10 @@ export function PreviewPage() {
     setSelectedFrame(frame)
     setOptimizedImage(optimized)
     setFinalImageUrl(nextUrl)
-    await saveSelectedFrame({ eventId: event.id, sessionId, frame })
+    await Promise.all([
+      saveSelectedFrame({ eventId: event.id, sessionId, frame }),
+      saveCameraSettings({ eventId: event.id, sessionId, cameraFacing: frame.preferredCameraFacing || 'user', captureOrientation: frame.preferredOrientation || 'portrait' }),
+    ])
   }
 
   if (eventLoading) {

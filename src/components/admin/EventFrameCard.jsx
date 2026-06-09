@@ -21,6 +21,7 @@ export function EventFrameCard({ eventSlug, frame, onDelete, onSetDefault, onTog
             {frame.isDefault ? <Badge tone="purple">Mặc định</Badge> : null}
             <Badge tone={frame.isActive ? 'emerald' : 'slate'}>{frame.isActive ? 'Đang bật' : 'Đã tắt'}</Badge>
             <Badge tone="amber">{frame.renderMode === 'background_overlay' ? 'Background + overlay' : 'Chỉ overlay'}</Badge>
+            <Badge>{frame.preferredCameraFacing === 'environment' ? 'Cam sau' : 'Cam trước'} · {frame.preferredOrientation === 'landscape' ? 'Ngang' : 'Dọc'}</Badge>
           </div>
         </div>
       </div>

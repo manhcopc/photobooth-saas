@@ -87,6 +87,8 @@ export function EventFrameEditorPage() {
   const [currentFrame, setCurrentFrame] = useState(null)
   const [layout, setLayout] = useState(normalizeFrameLayout(defaultFrameConfig, defaultFrameConfig.overlaySrc))
   const [renderMode, setRenderMode] = useState(FRAME_RENDER_MODES.overlayOnly)
+  const [preferredCameraFacing, setPreferredCameraFacing] = useState('user')
+  const [preferredOrientation, setPreferredOrientation] = useState('portrait')
   const [overlayUrl, setOverlayUrl] = useState(defaultFrameConfig.overlaySrc)
   const [backgroundUrl, setBackgroundUrl] = useState('')
   const [overlayFile, setOverlayFile] = useState(null)
@@ -113,6 +115,8 @@ export function EventFrameEditorPage() {
         setFrameName(frame.name)
         setSetAsDefault(frame.isDefault)
         setRenderMode(frame.renderMode || FRAME_RENDER_MODES.overlayOnly)
+        setPreferredCameraFacing(frame.preferredCameraFacing || 'user')
+        setPreferredOrientation(frame.preferredOrientation || 'portrait')
         setOverlayUrl(frame.overlayUrl || frame.frameUrl || '')
         setBackgroundUrl(frame.backgroundUrl || '')
         setLayout(normalizeFrameLayout(frame.layoutConfig, frame.overlayUrl || frame.frameUrl))
@@ -125,6 +129,8 @@ export function EventFrameEditorPage() {
       if (mode === 'legacy') {
         const legacyFrameUrl = data.frameUrl || defaultFrameConfig.overlaySrc
         setRenderMode(FRAME_RENDER_MODES.overlayOnly)
+        setPreferredCameraFacing('user')
+        setPreferredOrientation('portrait')
         setOverlayUrl(legacyFrameUrl)
         setBackgroundUrl('')
         setLayout(normalizeFrameLayout(data.layoutConfig, legacyFrameUrl))
@@ -134,6 +140,8 @@ export function EventFrameEditorPage() {
       } else {
         setFrameName('Frame mới')
         setRenderMode(FRAME_RENDER_MODES.overlayOnly)
+        setPreferredCameraFacing('user')
+        setPreferredOrientation('portrait')
         setOverlayUrl('')
         setBackgroundUrl('')
         setLayout(normalizeFrameLayout(defaultFrameConfig, ''))
@@ -253,6 +261,8 @@ export function EventFrameEditorPage() {
           overlayUrl: uploadedOverlayUrl,
           backgroundUrl: renderMode === FRAME_RENDER_MODES.backgroundOverlay ? uploadedBackgroundUrl : '',
           renderMode,
+          preferredCameraFacing,
+          preferredOrientation,
           layoutConfig: nextLayout,
           isDefault: shouldBeDefault,
           isActive: true,
@@ -271,6 +281,8 @@ export function EventFrameEditorPage() {
           overlayUrl: uploadedOverlayUrl,
           backgroundUrl: renderMode === FRAME_RENDER_MODES.backgroundOverlay ? uploadedBackgroundUrl : '',
           renderMode,
+          preferredCameraFacing,
+          preferredOrientation,
           layoutConfig: nextLayout,
           isDefault: setAsDefault || currentFrame.isDefault,
           isActive: currentFrame.isActive,
@@ -319,6 +331,16 @@ export function EventFrameEditorPage() {
             <label className="text-sm font-bold">Tên frame<input className="mt-1 w-full rounded-lg border px-3 py-2" onChange={(e) => setFrameName(e.target.value)} value={frameName} /></label>
             <label className="inline-flex items-center gap-2 self-end text-sm font-bold"><input checked={setAsDefault} onChange={(e) => setSetAsDefault(e.target.checked)} type="checkbox" /> Đặt làm frame mặc định</label>
             <label className="text-sm font-bold">Kiểu render<select className="mt-1 w-full rounded-lg border px-3 py-2" onChange={(event) => { const nextMode = event.target.value; setRenderMode(nextMode); setAssetWarnings(buildAssetWarnings({ backgroundMeta, overlayMeta, renderMode: nextMode })) }} value={renderMode}><option value={FRAME_RENDER_MODES.overlayOnly}>Chỉ overlay</option><option value={FRAME_RENDER_MODES.backgroundOverlay}>Background + overlay</option></select></label>
+          </div>
+        ) : null}
+
+        {mode !== 'legacy' ? (
+          <div className="mb-4 rounded-2xl bg-slate-50 p-4">
+            <h3 className="mb-3 text-lg font-black text-slate-950">Cài đặt camera</h3>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <label className="text-sm font-bold">Camera mặc định<select className="mt-1 w-full rounded-lg border px-3 py-2" onChange={(event) => setPreferredCameraFacing(event.target.value)} value={preferredCameraFacing}><option value="user">Cam trước</option><option value="environment">Cam sau</option></select></label>
+              <label className="text-sm font-bold">Hướng chụp<select className="mt-1 w-full rounded-lg border px-3 py-2" onChange={(event) => setPreferredOrientation(event.target.value)} value={preferredOrientation}><option value="portrait">Dọc</option><option value="landscape">Ngang</option></select></label>
+            </div>
           </div>
         ) : null}
 

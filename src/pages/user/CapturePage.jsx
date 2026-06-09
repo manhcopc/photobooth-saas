@@ -1,11 +1,11 @@
-import { Camera } from 'lucide-react'
+import { Camera, RefreshCw, RotateCcw } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { ProgressSteps } from '../../components/common/ProgressSteps'
 import { Button } from '../../components/common/Button'
 import { useCamera } from '../../hooks/useCamera'
 import { useCurrentEvent } from '../../hooks/useCurrentEvent'
-import { getActiveSession, getCountdownSeconds, saveCaptures } from '../../services/photoStorage'
+import { getActiveSession, getCameraSettings, getCountdownSeconds, saveCameraSettings, saveCaptures } from '../../services/photoStorage'
 import { captureVideoFrame } from '../../utils/images'
 import { EventNotFoundPage } from './EventNotFoundPage'
 import { EventInactivePage } from './EventInactivePage'
@@ -18,7 +18,9 @@ export function CapturePage() {
   const [photos, setPhotos] = useState([])
   const [sessionId, setSessionId] = useState(null)
   const [countdownSeconds, setCountdownSeconds] = useState(5)
-  const { videoRef, ready, error } = useCamera(Boolean(event && sessionId))
+  const [cameraFacing, setCameraFacing] = useState('user')
+  const [captureOrientation, setCaptureOrientation] = useState('portrait')
+  const { videoRef, ready, error, warning, activeFacingMode } = useCamera(Boolean(event && sessionId), { facingMode: cameraFacing, orientation: captureOrientation })
   const [countdown, setCountdown] = useState(null)
   const [shooting, setShooting] = useState(false)
   const [saving, setSaving] = useState(false)
@@ -35,8 +37,13 @@ export function CapturePage() {
         navigate(`/e/${event.slug}`)
         return
       }
-      const storedCountdown = await getCountdownSeconds({ eventId: event.id, sessionId: activeSessionId })
+      const [storedCountdown, cameraSettings] = await Promise.all([
+        getCountdownSeconds({ eventId: event.id, sessionId: activeSessionId }),
+        getCameraSettings({ eventId: event.id, sessionId: activeSessionId }),
+      ])
       setCountdownSeconds(Number(storedCountdown || event.defaultCountdownSeconds || 5))
+      setCameraFacing(cameraSettings?.cameraFacing || 'user')
+      setCaptureOrientation(cameraSettings?.captureOrientation || 'portrait')
       setSessionId(activeSessionId)
     }
 
@@ -47,12 +54,32 @@ export function CapturePage() {
     }
   }, [event, navigate])
 
+  const persistCameraSettings = useCallback(async (nextFacing, nextOrientation) => {
+    if (!event || !sessionId) return
+    await saveCameraSettings({ eventId: event.id, sessionId, cameraFacing: nextFacing, captureOrientation: nextOrientation })
+  }, [event, sessionId])
+
+  const toggleCamera = async () => {
+    const nextFacing = cameraFacing === 'user' ? 'environment' : 'user'
+    setCameraFacing(nextFacing)
+    await persistCameraSettings(nextFacing, captureOrientation)
+  }
+
+  const toggleOrientation = async () => {
+    const nextOrientation = captureOrientation === 'portrait' ? 'landscape' : 'portrait'
+    setCaptureOrientation(nextOrientation)
+    await persistCameraSettings(cameraFacing, nextOrientation)
+  }
+
   const capturePhoto = useCallback(() => {
     const video = videoRef.current
     if (!video) return
-    const dataUrl = captureVideoFrame(video)
+    const dataUrl = captureVideoFrame(video, {
+      orientation: captureOrientation,
+      mirror: activeFacingMode === 'user',
+    })
     setPhotos((current) => [...current, dataUrl])
-  }, [videoRef])
+  }, [activeFacingMode, captureOrientation, videoRef])
 
   const takeOne = useCallback(() => {
     setShooting(true)
@@ -106,16 +133,25 @@ export function CapturePage() {
   if (!event) return <EventNotFoundPage />
   if (event.status !== 'active') return <EventInactivePage />
 
+  const isPortrait = captureOrientation === 'portrait'
+  const controlsDisabled = shooting || saving || countdown !== null
+
   return (
     <div className="min-h-svh md:min-h-[820px]">
       <ProgressSteps active={1} />
       <section className="px-5 pb-6">
         <div className="relative overflow-hidden rounded-[2rem] bg-slate-950 shadow-xl">
-          <video className="aspect-[3/4] w-full scale-x-[-1] object-cover" muted playsInline ref={videoRef} />
+          <video className={`${isPortrait ? 'aspect-[9/16]' : 'aspect-video'} w-full ${activeFacingMode === 'user' ? 'scale-x-[-1]' : ''} object-cover`} muted playsInline ref={videoRef} />
           {countdown ? <div className="absolute inset-0 grid place-items-center bg-slate-950/35 text-8xl font-black text-white">{countdown}</div> : null}
           {!ready && !error ? <div className="absolute inset-0 grid place-items-center text-white">Đang mở camera...</div> : null}
         </div>
+        {warning ? <p className="mt-4 rounded-2xl bg-amber-50 p-4 text-sm font-semibold text-amber-700">{warning}</p> : null}
         {error ? <p className="mt-4 rounded-2xl bg-red-50 p-4 text-sm font-semibold text-red-600">{error}</p> : null}
+        <div className="mt-4 grid grid-cols-2 gap-2">
+          <button className="inline-flex min-h-12 items-center justify-center rounded-2xl bg-white px-4 py-3 font-bold text-purple-700 ring-1 ring-purple-100 disabled:opacity-50" disabled={controlsDisabled} onClick={toggleCamera} type="button"><RefreshCw className="mr-2" size={16} /> Đổi camera</button>
+          <button className="inline-flex min-h-12 items-center justify-center rounded-2xl bg-white px-4 py-3 font-bold text-purple-700 ring-1 ring-purple-100 disabled:opacity-50" disabled={controlsDisabled} onClick={toggleOrientation} type="button"><RotateCcw className="mr-2" size={16} /> Đổi hướng</button>
+        </div>
+        <p className="mt-3 rounded-2xl bg-purple-50 p-3 text-sm font-bold text-purple-700">Đang dùng: {activeFacingMode === 'environment' ? 'Cam sau' : 'Cam trước'} · {isPortrait ? 'Chụp dọc' : 'Chụp ngang'}</p>
         <div className="mt-5 flex items-center justify-between rounded-3xl bg-white p-4 shadow-sm">
           <div>
             <p className="text-sm font-bold text-slate-500">Đã chụp</p>
