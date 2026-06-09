@@ -100,3 +100,5 @@ export const composeFinalImage = async (photos, frameOrLayout) => {
   canvas.height = 0
   return dataUrl
 }
+
+
