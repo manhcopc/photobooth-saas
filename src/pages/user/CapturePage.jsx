@@ -24,7 +24,10 @@ export function CapturePage() {
   const [countdown, setCountdown] = useState(null)
   const [shooting, setShooting] = useState(false)
   const [saving, setSaving] = useState(false)
+  const [videoClips, setVideoClips] = useState([])
   const timerRef = useRef(null)
+  const mediaRecorderRef = useRef(null)
+  const recordedChunksRef = useRef([])
 
   useEffect(() => {
     if (!event) return
@@ -82,10 +85,52 @@ export function CapturePage() {
     setPhotos((current) => [...current, captureItem])
   }, [activeFacingMode, captureOrientation, videoRef])
 
+  const startRecording = useCallback(() => {
+    const video = videoRef.current
+    if (!video || !video.srcObject) return
+    recordedChunksRef.current = []
+    
+    // We use webm format for browser compatibility (iOS supports mp4 natively but webm is standard for MediaRecorder on desktop/Android)
+    // The backend will convert webm to mp4 using ffmpeg.
+    try {
+      const options = MediaRecorder.isTypeSupported('video/webm;codecs=vp8,opus') 
+        ? { mimeType: 'video/webm;codecs=vp8,opus' } 
+        : { mimeType: 'video/mp4' };
+        
+      const recorder = new MediaRecorder(video.srcObject, options)
+      
+      recorder.ondataavailable = (e) => {
+        if (e.data.size > 0) {
+          recordedChunksRef.current.push(e.data)
+        }
+      }
+      
+      recorder.onstop = () => {
+        const blob = new Blob(recordedChunksRef.current, { type: recorder.mimeType })
+        setVideoClips((current) => [...current, blob])
+      }
+      
+      mediaRecorderRef.current = recorder
+      recorder.start()
+    } catch (err) {
+      console.error('MediaRecorder error:', err)
+    }
+  }, [videoRef])
+
+  const stopRecording = useCallback(() => {
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') {
+      mediaRecorderRef.current.stop()
+    }
+  }, [])
+
   const takeOne = useCallback(() => {
     setShooting(true)
     setCountdown(countdownSeconds)
     let value = countdownSeconds
+    
+    // Start recording the clip
+    startRecording()
+    
     timerRef.current = window.setInterval(() => {
       value -= 1
       if (value > 0) {
@@ -95,9 +140,10 @@ export function CapturePage() {
       window.clearInterval(timerRef.current)
       setCountdown(null)
       capturePhoto()
+      stopRecording()
       setShooting(false)
     }, 900)
-  }, [capturePhoto, countdownSeconds])
+  }, [capturePhoto, countdownSeconds, startRecording, stopRecording])
 
   useEffect(() => () => window.clearInterval(timerRef.current), [])
 
@@ -114,7 +160,7 @@ export function CapturePage() {
 
     const persistPhotos = async () => {
       setSaving(true)
-      await saveCaptures({ eventId: event.id, sessionId, photos })
+      await saveCaptures({ eventId: event.id, sessionId, photos, videoClips })
       if (!mounted) return
       setSaving(false)
       if (photos.length >= TOTAL_PHOTOS) navigate(`/e/${event.slug}/select`)
@@ -125,7 +171,7 @@ export function CapturePage() {
     return () => {
       mounted = false
     }
-  }, [event, navigate, photos, sessionId])
+  }, [event, navigate, photos, videoClips, sessionId])
 
   if (eventLoading) {
     return <div className="grid min-h-svh place-items-center p-6 font-bold text-purple-700 md:min-h-[820px]">Đang tải sự kiện...</div>

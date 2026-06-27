@@ -35,15 +35,27 @@ export const startPhotoSession = async (eventId) => {
   return sessionId
 }
 
+const buildVideoClipsKey = (eventId, sessionId) => `${STORAGE_KEYS.captures}:${eventId}:${sessionId}:videos`
+
 export const getCaptures = async ({ eventId, sessionId }) => {
   if (!eventId || !sessionId) return []
   const photos = await readStorage(buildCaptureKey(eventId, sessionId), [])
   return Array.isArray(photos) ? photos : []
 }
 
-export const saveCaptures = async ({ eventId, sessionId, photos }) => {
+export const getVideoClips = async ({ eventId, sessionId }) => {
+  if (!eventId || !sessionId) return []
+  const videos = await readStorage(buildVideoClipsKey(eventId, sessionId), [])
+  return Array.isArray(videos) ? videos : []
+}
+
+export const saveCaptures = async ({ eventId, sessionId, photos, videoClips = [] }) => {
   const safePhotos = Array.isArray(photos) ? photos : []
-  await writeStorage(buildCaptureKey(eventId, sessionId), safePhotos)
+  const safeVideos = Array.isArray(videoClips) ? videoClips : []
+  await Promise.all([
+    writeStorage(buildCaptureKey(eventId, sessionId), safePhotos),
+    writeStorage(buildVideoClipsKey(eventId, sessionId), safeVideos)
+  ])
   return safePhotos
 }
 
@@ -59,6 +71,9 @@ export const saveSelectedPhotos = async ({ eventId, sessionId, photos }) => {
   return safePhotos
 }
 
+const buildSessionSignatureKey = (eventId, sessionId) => `${STORAGE_KEYS.activeSessions}:${eventId}:${sessionId}:signature`
+const buildSessionMessageKey = (eventId, sessionId) => `${STORAGE_KEYS.activeSessions}:${eventId}:${sessionId}:message`
+
 export const saveSelectedFrame = async ({ eventId, sessionId, frame }) => {
   if (!eventId || !sessionId) return null
   await writeStorage(buildSessionFrameKey(eventId, sessionId), frame)
@@ -68,6 +83,28 @@ export const saveSelectedFrame = async ({ eventId, sessionId, frame }) => {
 export const getSelectedFrame = async ({ eventId, sessionId }) => {
   if (!eventId || !sessionId) return null
   return readStorage(buildSessionFrameKey(eventId, sessionId), null)
+}
+
+export const saveSignature = async ({ eventId, sessionId, signature }) => {
+  if (!eventId || !sessionId) return null
+  await writeStorage(buildSessionSignatureKey(eventId, sessionId), signature)
+  return signature
+}
+
+export const getSignature = async ({ eventId, sessionId }) => {
+  if (!eventId || !sessionId) return null
+  return readStorage(buildSessionSignatureKey(eventId, sessionId), null)
+}
+
+export const saveMessage = async ({ eventId, sessionId, message }) => {
+  if (!eventId || !sessionId) return null
+  await writeStorage(buildSessionMessageKey(eventId, sessionId), message)
+  return message
+}
+
+export const getMessage = async ({ eventId, sessionId }) => {
+  if (!eventId || !sessionId) return null
+  return readStorage(buildSessionMessageKey(eventId, sessionId), null)
 }
 
 export const saveCountdownSeconds = async ({ eventId, sessionId, countdownSeconds }) => {

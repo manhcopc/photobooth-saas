@@ -52,9 +52,15 @@ export function SelectPhotosPage() {
   }
 
   const continueToPreview = async () => {
-    setSaving(true)
-    await saveSelectedPhotos({ eventId: event.id, sessionId, photos: selected })
-    navigate(`/e/${event.slug}/preview`)
+    try {
+      setSaving(true)
+      await saveSelectedPhotos({ eventId: event.id, sessionId, photos: selected })
+      navigate(`/e/${event.slug}/preview`)
+    } catch (error) {
+      console.error("SelectPhotosPage continueToPreview error:", error)
+      alert("Lỗi khi lưu ảnh chọn: " + (error.message || "Unknown error"))
+      setSaving(false)
+    }
   }
 
   if (eventLoading) {

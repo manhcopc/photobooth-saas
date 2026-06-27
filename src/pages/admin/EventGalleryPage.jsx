@@ -1,9 +1,11 @@
 import { Download, RefreshCw, X } from 'lucide-react'
 import { Link, useParams } from 'react-router-dom'
+import { VideoRecapPreview } from '../../components/VideoRecapPreview'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { SyncStatusBadge } from '../../components/admin/SyncStatusBadge'
 import { useUploadQueue } from '../../hooks/useUploadQueue'
 import { getEventBySlug } from '../../services/eventStorage'
+import { getFramesWithLegacyFallback } from '../../services/eventFrameService'
 import { getLocalGalleryItemsByEventId, revokeLocalGalleryItemUrls } from '../../services/localGalleryService'
 import { getCloudFinalOutputsByEventId, incrementDownloadCount } from '../../services/supabaseGalleryService'
 import { retryUploadQueueItem, UPLOAD_QUEUE_STATUSES } from '../../services/uploadQueueService'
@@ -69,8 +71,29 @@ export function EventGalleryPage() {
   const [retryingId, setRetryingId] = useState('')
   const [galleryMessage, setGalleryMessage] = useState('')
   const [selectedImage, setSelectedImage] = useState(null)
+  const [sessionDetails, setSessionDetails] = useState(null)
   const [downloadingZip, setDownloadingZip] = useState(false)
   const { queue, refreshQueue } = useUploadQueue({ eventId: event?.id })
+
+  useEffect(() => {
+    if (!selectedImage) {
+      setSessionDetails(null)
+      return
+    }
+    const fetchSession = async () => {
+      try {
+        const response = await fetch(`http://localhost:4000/api/admin/sessions?page=1&limit=100`)
+        if (response.ok) {
+          const data = await response.json()
+          const session = data.data?.find(s => s.saasSessionId === selectedImage.sessionId || s.id === selectedImage.sessionId)
+          if (session) setSessionDetails(session)
+        }
+      } catch (e) {
+        console.error('Failed to fetch session details:', e)
+      }
+    }
+    fetchSession()
+  }, [selectedImage])
 
   const loadGallery = useCallback(async () => {
     setGalleryMessage('')
@@ -95,7 +118,9 @@ export function EventGalleryPage() {
     }
 
     const nextLocalItems = await getLocalGalleryItemsByEventId(storedEvent.id)
-    setEvent(storedEvent)
+    const frames = await getFramesWithLegacyFallback(storedEvent)
+    
+    setEvent({ ...storedEvent, frames })
     setCloudItems(nextCloudItems)
     setLocalItems((current) => {
       revokeLocalGalleryItemUrls(current)
@@ -139,11 +164,30 @@ export function EventGalleryPage() {
   }
 
   const downloadImage = async (image) => {
-    const link = document.createElement('a')
-    link.href = image.downloadUrl || image.finalUrl || image.imageUrl
-    link.download = `photobooth-${event.slug}-${image.id}.webp`
-    link.rel = 'noreferrer'
-    link.click()
+    const url = image.downloadUrl || image.finalUrl || image.imageUrl
+    if (!url) return
+    try {
+      const response = await fetch(url)
+      const blob = await response.blob()
+      const objectUrl = window.URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      link.href = objectUrl
+      const isVideo = url.includes('.mp4') || url.includes('.webm') || blob.type.includes('video')
+      link.download = `photobooth-${event.slug}-${image.id}${isVideo ? '.mp4' : '.webp'}`
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+      window.URL.revokeObjectURL(objectUrl)
+    } catch (error) {
+      console.error('Failed to download file:', error)
+      const link = document.createElement('a')
+      link.href = url
+      link.download = `photobooth-${event.slug}-${image.id}`
+      link.target = '_blank'
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+    }
     if (image.source === 'cloud') await incrementDownloadCount(image.id, image.downloadCount)
   }
 
@@ -248,18 +292,82 @@ export function EventGalleryPage() {
           <div className="max-h-[92vh] w-full max-w-3xl overflow-auto rounded-3xl bg-white p-4 shadow-2xl">
             <div className="flex items-start justify-between gap-3">
               <div>
-                <h2 className="text-xl font-black text-slate-950">Ảnh photobooth</h2>
+                <h2 className="text-xl font-black text-slate-950">Chi tiết Phiên chụp</h2>
                 <p className="mt-1 text-sm text-slate-500">{new Date(selectedImage.createdAt).toLocaleString('vi-VN')} · Khung: {selectedImage.frameName || 'Khung mặc định'}</p>
               </div>
               <button className="rounded-2xl bg-slate-100 p-2 text-slate-700" onClick={() => setSelectedImage(null)} type="button"><X size={20} /></button>
             </div>
+            
             <div className="mt-4 overflow-hidden rounded-2xl bg-slate-100">
               <img alt="Ảnh final phóng lớn" className="max-h-[65vh] w-full object-contain" src={selectedImage.finalUrl || selectedImage.imageUrl} />
             </div>
-            <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between border-b pb-4">
               <SyncStatusBadge status={selectedImage.status} />
-              <button className="inline-flex items-center justify-center gap-2 rounded-2xl bg-purple-600 px-5 py-3 font-bold text-white" onClick={() => downloadImage(selectedImage)} type="button"><Download size={18} /> Tải ảnh</button>
+              <button className="inline-flex items-center justify-center gap-2 rounded-2xl bg-purple-600 px-5 py-3 font-bold text-white" onClick={() => downloadImage(selectedImage)} type="button"><Download size={18} /> Tải ảnh Final</button>
             </div>
+
+            {sessionDetails && sessionDetails.medias && (
+              <div className="mt-4">
+                {(sessionDetails.medias.some(m => m.type === 'VIDEO_RECAP') || sessionDetails.medias.some(m => m.type === 'VIDEO')) && event && (
+                  <div className="mb-6">
+                    <h3 className="text-lg font-bold text-slate-800 mb-3">Video Recap</h3>
+                    <div className="overflow-hidden rounded-2xl bg-slate-100 border border-slate-200">
+                      {sessionDetails.medias.some(m => m.type === 'VIDEO_RECAP') ? (
+                        <video 
+                          src={sessionDetails.medias.find(m => m.type === 'VIDEO_RECAP').url} 
+                          controls 
+                          playsInline 
+                          className="w-full aspect-[2/3] object-cover bg-black" 
+                        />
+                      ) : (
+                        <VideoRecapPreview 
+                          videos={sessionDetails.medias.filter(m => m.type === 'VIDEO').map(m => m.url)} 
+                          frameOrLayout={event.frames?.find(f => f.id === sessionDetails.selectedFrame) || event.frames?.[0] || event} 
+                        />
+                      )}
+                    </div>
+                    <button 
+                      onClick={() => {
+                        const recap = sessionDetails.medias.find(m => m.type === 'VIDEO_RECAP');
+                        const videoUrl = recap ? recap.url : sessionDetails.medias.find(m => m.type === 'VIDEO')?.url;
+                        if (videoUrl) downloadImage({ finalUrl: videoUrl, id: 'video-recap' });
+                      }} 
+                      className="mt-3 w-full py-3 bg-purple-100 text-purple-700 text-sm font-bold rounded-xl flex justify-center items-center gap-2 transition-colors hover:bg-purple-200"
+                    >
+                      <Download size={18} /> Tải Video Recap
+                    </button>
+                  </div>
+                )}
+
+                {sessionDetails.medias.filter(m => m.type === 'VIDEO').length > 0 && (
+                  <div className="mb-6">
+                    <h3 className="text-lg font-bold text-slate-800 mb-3">Video Clips Gốc</h3>
+                    <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                      {sessionDetails.medias.filter(m => m.type === 'VIDEO').map((media, i) => (
+                        <div key={i} className="rounded-2xl bg-slate-50 p-2 border border-slate-100">
+                          <video src={media.url} controls className="w-full aspect-[2/3] object-cover rounded-xl bg-black mb-2" />
+                          <button onClick={() => downloadImage({ finalUrl: media.url, id: `video-${i}` })} className="w-full py-2 bg-slate-200 text-slate-700 text-xs font-bold rounded-lg flex justify-center items-center gap-1"><Download size={14} /> Tải Video</button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                
+                {sessionDetails.medias.filter(m => m.type === 'ORIGINAL').length > 0 && (
+                  <div>
+                    <h3 className="text-lg font-bold text-slate-800 mb-3">Ảnh Gốc</h3>
+                    <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                      {sessionDetails.medias.filter(m => m.type === 'ORIGINAL').map((media, i) => (
+                        <div key={i} className="rounded-2xl bg-slate-50 p-2 border border-slate-100">
+                          <img src={media.url} alt={`Original ${i+1}`} className="w-full aspect-[2/3] object-cover rounded-xl mb-2" />
+                          <button onClick={() => downloadImage({ finalUrl: media.url, id: `photo-${i}` })} className="w-full py-2 bg-slate-200 text-slate-700 text-xs font-bold rounded-lg flex justify-center items-center gap-1"><Download size={14} /> Tải Ảnh</button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         </div>
       ) : null}

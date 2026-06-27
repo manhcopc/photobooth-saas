@@ -1,6 +1,6 @@
 import { STORAGE_KEYS } from '../store/keys'
 import { readStorage, writeStorage } from '../utils/storage'
-import { uploadFinalOutputToSupabase } from './finalOutputService'
+import { uploadFinalOutputToBackend } from './finalOutputService'
 
 export const UPLOAD_QUEUE_STATUSES = {
   pending: 'pending',
@@ -8,6 +8,10 @@ export const UPLOAD_QUEUE_STATUSES = {
   success: 'success',
   failed: 'failed',
 }
+
+// ... rest remains same but I have to replace lines 1-10 and also line 160
+// Wait, I will just do multiple replacements.
+// Let's replace the import first
 
 export const UPLOAD_QUEUE_UPDATED_EVENT = 'photobooth-upload-queue-updated'
 
@@ -73,7 +77,7 @@ const patchLocalOutput = async (localOutputId, patch) => {
   await writeLocalOutputs(nextOutputs)
 }
 
-export const enqueueFinalOutput = async ({ event, sessionId, optimizedImage, selectedFrame }) => {
+export const enqueueFinalOutput = async ({ event, sessionId, optimizedImage, selectedFrame, composedVideoBlob }) => {
   const now = new Date().toISOString()
   const localOutputId = createId('local-output')
   const queueItem = {
@@ -88,6 +92,7 @@ export const enqueueFinalOutput = async ({ event, sessionId, optimizedImage, sel
     mimeType: optimizedImage.mimeType,
     width: optimizedImage.width,
     height: optimizedImage.height,
+    composedVideoBlob,
     localOutputId,
     selectedFrameId: selectedFrame?.id || null,
     selectedFrameName: selectedFrame?.name || 'Khung mặc định',
@@ -113,6 +118,7 @@ export const enqueueFinalOutput = async ({ event, sessionId, optimizedImage, sel
     mimeType: optimizedImage.mimeType,
     width: optimizedImage.width,
     height: optimizedImage.height,
+    composedVideoBlob,
     queueItemId: queueItem.id,
     selectedFrameId: queueItem.selectedFrameId,
     selectedFrameName: queueItem.selectedFrameName,
@@ -157,7 +163,7 @@ export const uploadQueueItem = async (id) => {
   })
 
   try {
-    const remoteOutput = await uploadFinalOutputToSupabase(uploadingItem)
+    const remoteOutput = await uploadFinalOutputToBackend(uploadingItem)
     const successPatch = {
       status: UPLOAD_QUEUE_STATUSES.success,
       remoteImageUrl: remoteOutput.imageUrl,
