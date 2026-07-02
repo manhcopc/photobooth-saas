@@ -1,8 +1,8 @@
-import { FINAL_OUTPUTS_TABLE, SUPABASE_FINAL_IMAGES_BUCKET, supabase } from '../lib/supabase'
-import { isUuid } from './eventFrameService'
-import { createThumbnailBlob, dataUrlToBlob, resizeImageBlob } from '../utils/imageOptimization'
+import { FINAL_OUTPUTS_TABLE, supabase } from '../lib/supabase'
+// import { isUuid } from './eventFrameService'
+import {  dataUrlToBlob } from '../utils/imageOptimization'
 
-const sanitizePathSegment = (value) => String(value || 'unknown').replace(/[^a-zA-Z0-9-_]/g, '-')
+// const sanitizePathSegment = (value) => String(value || 'unknown').replace(/[^a-zA-Z0-9-_]/g, '-')
 
 export const normalizeFinalOutput = (output) => ({
   id: output.id,
@@ -30,7 +30,7 @@ export const getFinalOutputs = async (eventId) => {
   return Array.isArray(data) ? data.map(normalizeFinalOutput) : []
 }
 
-const getWebPExtension = (blob) => (blob?.type === 'image/webp' ? 'webp' : 'bin')
+// const getWebPExtension = (blob) => (blob?.type === 'image/webp' ? 'webp' : 'bin')
 
 import { getCaptures, getVideoClips, getSignature, getMessage, getSelectedPhotos } from './photoStorage'
 
@@ -98,7 +98,8 @@ export const uploadFinalOutputToBackend = async (queueItem) => {
     }
   }
 
-  const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:4000'
+  // const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:4000'
+  const apiUrl = import.meta.env.VITE_API_URL
   const response = await fetch(`${apiUrl}/api/sessions/saas-upload`, {
     method: 'POST',
     body: formData,
