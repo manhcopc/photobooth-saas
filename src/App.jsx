@@ -8,6 +8,7 @@ import { CapturePage } from './pages/user/CapturePage'
 import { SelectPhotosPage } from './pages/user/SelectPhotosPage'
 import { PreviewPage } from './pages/user/PreviewPage'
 import { SuccessPage } from './pages/user/SuccessPage'
+import { SharePage } from './pages/user/SharePage'
 import { DashboardPage } from './pages/admin/DashboardPage'
 import { EventsListPage } from './pages/admin/EventsListPage'
 import { CreateEventPage } from './pages/admin/CreateEventPage'
@@ -29,6 +30,7 @@ function App() {
         <Route path="e/:slug/select" element={<SelectPhotosPage />} />
         <Route path="e/:slug/preview" element={<PreviewPage />} />
         <Route path="e/:slug/success" element={<SuccessPage />} />
+        <Route path="share/:sessionId" element={<SharePage />} />
       </Route>
       <Route element={<AdminShell />}>
         <Route path="admin/login" element={<AdminLoginPage />} />

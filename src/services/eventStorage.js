@@ -38,5 +38,11 @@ export const getEventBySlug = async (slug) => {
   return getCachedEventBySlug(slug)
 }
 
+export const getEventById = async (id) => {
+  if (!id) return null
+  const events = await getEvents()
+  return events.find(e => e.id === id) || null
+}
+
 export const createEvent = createSupabaseEvent
 export const updateEvent = updateSupabaseEvent

@@ -17,11 +17,8 @@ const getCoverSourceRect = (sourceWidth, sourceHeight, targetWidth, targetHeight
 }
 
 const captureVideoFrameData = (video, { orientation = 'portrait', mirror = true } = {}) => {
-  const sourceWidth = video.videoWidth || (orientation === 'landscape' ? 1280 : 720)
-  const sourceHeight = video.videoHeight || (orientation === 'landscape' ? 720 : 1280)
-  const width = orientation === 'landscape' ? 1280 : 720
-  const height = orientation === 'landscape' ? 720 : 1280
-  const source = getCoverSourceRect(sourceWidth, sourceHeight, width, height)
+  const width = video.videoWidth || (orientation === 'landscape' ? 1280 : 720)
+  const height = video.videoHeight || (orientation === 'landscape' ? 720 : 1280)
   const canvas = document.createElement('canvas')
   canvas.width = width
   canvas.height = height
@@ -32,7 +29,7 @@ const captureVideoFrameData = (video, { orientation = 'portrait', mirror = true 
     context.scale(-1, 1)
   }
 
-  context.drawImage(video, source.x, source.y, source.width, source.height, 0, 0, width, height)
+  context.drawImage(video, 0, 0, width, height)
   return {
     dataUrl: canvas.toDataURL(CAPTURE_IMAGE_TYPE, CAPTURE_IMAGE_QUALITY),
     width,

@@ -1,8 +1,8 @@
-import { FINAL_OUTPUTS_TABLE, SUPABASE_FINAL_IMAGES_BUCKET, supabase } from '../lib/supabase'
-import { isUuid } from './eventFrameService'
-import { createThumbnailBlob, dataUrlToBlob, resizeImageBlob } from '../utils/imageOptimization'
+import { FINAL_OUTPUTS_TABLE, supabase } from '../lib/supabase'
+// import { isUuid } from './eventFrameService'
+import {  dataUrlToBlob } from '../utils/imageOptimization'
 
-const sanitizePathSegment = (value) => String(value || 'unknown').replace(/[^a-zA-Z0-9-_]/g, '-')
+// const sanitizePathSegment = (value) => String(value || 'unknown').replace(/[^a-zA-Z0-9-_]/g, '-')
 
 export const normalizeFinalOutput = (output) => ({
   id: output.id,
@@ -30,80 +30,95 @@ export const getFinalOutputs = async (eventId) => {
   return Array.isArray(data) ? data.map(normalizeFinalOutput) : []
 }
 
-const getWebPExtension = (blob) => (blob?.type === 'image/webp' ? 'webp' : 'bin')
+// const getWebPExtension = (blob) => (blob?.type === 'image/webp' ? 'webp' : 'bin')
 
-const uploadBlobToStorage = async ({ path, blob }) => {
-  await supabase.storage.from(SUPABASE_FINAL_IMAGES_BUCKET).upload(path, blob, {
-    contentType: blob.type || 'application/octet-stream',
-    upsert: true,
+import { getCaptures, getVideoClips, getSignature, getMessage, getSelectedPhotos } from './photoStorage'
+
+export const uploadFinalOutputToBackend = async (queueItem) => {
+  const { eventId, sessionId, finalBlob, localOutputId } = queueItem
+  
+  // Get all related media from storage
+  const [photos, videoClips, signature, message, selectedPhotos] = await Promise.all([
+    getCaptures({ eventId, sessionId }),
+    getVideoClips({ eventId, sessionId }),
+    getSignature({ eventId, sessionId }),
+    getMessage({ eventId, sessionId }),
+    getSelectedPhotos({ eventId, sessionId })
+  ])
+
+  const selectedIndices = photos.map((photo, index) => 
+    selectedPhotos.some(s => s.id === photo.id) ? index : -1
+  ).filter(i => i !== -1)
+
+  const finalPhotosToUpload = selectedIndices.map(i => photos[i]).filter(Boolean)
+  const finalVideosToUpload = selectedIndices.map(i => videoClips[i]).filter(Boolean)
+
+  const formData = new FormData()
+  formData.append('eventId', eventId)
+  formData.append('sessionId', sessionId)
+  formData.append('localOutputId', localOutputId)
+  formData.append('isMirrored', 'true')
+  if (queueItem.selectedFrameId) {
+    formData.append('selectedFrameId', queueItem.selectedFrameId)
+  }
+  
+  if (message) {
+    formData.append('message', message)
+  }
+
+  if (finalBlob) {
+    formData.append('finalImage', finalBlob, `final-${localOutputId}.webp`)
+  }
+
+  if (queueItem.composedVideoBlob) {
+    formData.append('finalVideo', queueItem.composedVideoBlob, `final-${localOutputId}.webm`)
+  }
+
+  // Append raw photos
+  finalPhotosToUpload.forEach((photo, index) => {
+    if (photo && photo.blob) {
+      formData.append('photos', photo.blob, `photo-${index}.webp`)
+    }
   })
-  const { data } = supabase.storage.from(SUPABASE_FINAL_IMAGES_BUCKET).getPublicUrl(path)
-  return data.publicUrl
-}
 
-export const uploadFinalOutputToSupabase = async (queueItem) => {
-  let finalBlob = queueItem.finalBlob
-  let thumbnailBlob = queueItem.thumbnailBlob
-  let width = queueItem.width
-  let height = queueItem.height
-
-  if (!finalBlob && queueItem.imageDataUrl) {
-    const sourceBlob = await dataUrlToBlob(queueItem.imageDataUrl)
-    const optimizedFinal = await resizeImageBlob(sourceBlob, { maxWidth: 1800, maxHeight: 2700, quality: 0.85, type: 'image/webp' })
-    const optimizedThumbnail = await createThumbnailBlob(optimizedFinal.blob, { maxWidth: 400, quality: 0.75, type: 'image/webp' })
-    finalBlob = optimizedFinal.blob
-    thumbnailBlob = optimizedThumbnail.blob
-    width = optimizedFinal.width
-    height = optimizedFinal.height
-  }
-
-  let remoteImageUrl = queueItem.remoteImageUrl || ''
-  let remoteThumbnailUrl = queueItem.remoteThumbnailUrl || ''
-  const finalPath = queueItem.finalStoragePath || [
-    sanitizePathSegment(queueItem.eventId),
-    `${sanitizePathSegment(queueItem.localOutputId)}.${getWebPExtension(finalBlob)}`,
-  ].join('/')
-  const thumbnailPath = queueItem.thumbnailStoragePath || [
-    sanitizePathSegment(queueItem.eventId),
-    'thumbnails',
-    `${sanitizePathSegment(queueItem.localOutputId)}.${getWebPExtension(thumbnailBlob)}`,
-  ].join('/')
-
-  try {
-    if (!remoteImageUrl) {
-      remoteImageUrl = await uploadBlobToStorage({ path: finalPath, blob: finalBlob })
+  // Append video clips
+  finalVideosToUpload.forEach((video, index) => {
+    if (video) {
+      formData.append('videoClips', video, `video-${index}.webm`)
     }
+  })
 
-    if (!remoteThumbnailUrl) {
-      remoteThumbnailUrl = await uploadBlobToStorage({ path: thumbnailPath, blob: thumbnailBlob })
+  // Append signature
+  if (signature) {
+    try {
+      const sigBlob = await dataUrlToBlob(signature)
+      formData.append('signature', sigBlob, 'signature.png')
+    } catch (e) {
+      console.error('Failed to convert signature to blob', e)
     }
-  } catch (error) {
-    error.remoteImageUrl = remoteImageUrl
-    error.remoteThumbnailUrl = remoteThumbnailUrl
-    error.finalStoragePath = finalPath
-    error.thumbnailStoragePath = thumbnailPath
-    throw error
   }
 
-  const metadata = {
-    id: queueItem.localOutputId,
-    event_id: queueItem.eventId,
-    session_id: queueItem.sessionId,
-    image_path: finalPath,
-    thumbnail_path: thumbnailPath,
-    image_url: remoteImageUrl,
-    thumbnail_url: remoteThumbnailUrl,
-    file_size: queueItem.finalSize || finalBlob?.size,
-    thumbnail_size: queueItem.thumbnailSize || thumbnailBlob?.size,
-    mime_type: queueItem.mimeType || finalBlob?.type || 'image/webp',
-    width,
-    height,
-    upload_status: 'success',
-    frame_id: isUuid(queueItem.selectedFrameId) ? queueItem.selectedFrameId : null,
-    frame_name: queueItem.selectedFrameName || 'Khung mặc định',
-    frame_render_mode: queueItem.selectedFrameRenderMode || 'overlay_only',
-    created_at: queueItem.createdAt,
+  // const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:4000'
+  const apiUrl = import.meta.env.VITE_API_URL
+  const response = await fetch(`${apiUrl}/api/sessions/saas-upload`, {
+    method: 'POST',
+    body: formData,
+  })
+
+  if (!response.ok) {
+    throw new Error(`Upload failed with status ${response.status}`)
   }
-  const { data } = await supabase.from(FINAL_OUTPUTS_TABLE).upsert(metadata)
-  return normalizeFinalOutput(Array.isArray(data) ? data[0] : metadata)
+
+  const data = await response.json()
+  
+  if (!data.success) {
+    throw new Error(data.message || 'Backend upload failed')
+  }
+
+  // The backend already saves to the final_outputs table via TypeORM!
+  // So we just need to return the expected object format so the queue marks it as success.
+  return {
+    imageUrl: data.finalImageUrl,
+    thumbnailUrl: data.finalImageUrl, // We can use the same or let backend generate
+  }
 }

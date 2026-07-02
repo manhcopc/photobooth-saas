@@ -1,5 +1,20 @@
 @import "tailwindcss";
 
+@theme {
+  --color-premium-bg: #020617;
+  --color-premium-surface: #0F172A;
+  --color-premium-card: #111827;
+  --color-premium-border: rgba(255, 255, 255, 0.08);
+  --color-premium-primary: #7C3AED;
+  --color-premium-secondary: #EC4899;
+  --color-premium-accent: #06B6D4;
+  --color-premium-success: #10B981;
+  --color-premium-danger: #EF4444;
+  --color-premium-warning: #F59E0B;
+  --color-premium-text: #F8FAFC;
+  --color-premium-text-muted: #94A3B8;
+}
+
 :root {
   color: #0f172a;
   background: #fdf2f8;
