@@ -1,6 +1,7 @@
 import { FINAL_OUTPUTS_TABLE, supabase } from '../lib/supabase'
 // import { isUuid } from './eventFrameService'
-import {  dataUrlToBlob } from '../utils/imageOptimization'
+import { createThumbnailBlob, dataUrlToBlob, resizeImageBlob } from '../utils/imageOptimization'
+import { debugFetch as fetch } from '../utils/debugFetch'
 
 // const sanitizePathSegment = (value) => String(value || 'unknown').replace(/[^a-zA-Z0-9-_]/g, '-')
 

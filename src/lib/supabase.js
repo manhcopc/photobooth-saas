@@ -1,4 +1,5 @@
 import { getEnv, isSupabaseEnvConfigured, validateEnv } from '../utils/env'
+import { debugFetch as fetch } from '../utils/debugFetch'
 
 export const SUPABASE_FINAL_IMAGES_BUCKET = 'photobooth-final-images'
 export const FINAL_OUTPUTS_TABLE = 'final_outputs'
