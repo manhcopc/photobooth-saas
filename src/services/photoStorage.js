@@ -21,6 +21,7 @@ export const clearSession = async ({ eventId, sessionId }) => {
   if (!eventId || !sessionId) return
   await Promise.all([
     removeStorage(buildCaptureKey(eventId, sessionId)),
+    removeStorage(buildVideoClipsKey(eventId, sessionId)),
     removeStorage(buildSelectedKey(eventId, sessionId)),
     removeStorage(buildSessionFrameKey(eventId, sessionId)),
     removeStorage(buildSessionCountdownKey(eventId, sessionId)),

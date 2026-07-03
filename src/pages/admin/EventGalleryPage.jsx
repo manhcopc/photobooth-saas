@@ -1,4 +1,4 @@
-import { Download, RefreshCw, X } from "lucide-react";
+import { Download, RefreshCw, Trash2, X } from "lucide-react";
 import { Link, useParams } from "react-router-dom";
 import { VideoRecapPreview } from "../../components/VideoRecapPreview";
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -14,11 +14,14 @@ import {
   getCloudFinalOutputsByEventId,
   incrementDownloadCount,
 } from "../../services/supabaseGalleryService";
+import { deleteSaasSessionFiles } from "../../services/finalOutputService";
 import {
-  retryUploadQueueItem,
   UPLOAD_QUEUE_STATUSES,
+  retryUploadQueueItem,
+  clearLocalCache,
 } from "../../services/uploadQueueService";
 import { createZipBlob } from "../../utils/zip";
+import { supabase } from "../../lib/supabase";
 
 const LOCAL_FALLBACK_MESSAGE =
   "Đang hiển thị dữ liệu cục bộ do mất kết nối hoặc lỗi tải dữ liệu cloud";
@@ -239,6 +242,36 @@ export function EventGalleryPage() {
       await incrementDownloadCount(image.id, image.downloadCount);
   };
 
+  const handleDeleteSession = async (image) => {
+    if (!window.confirm('CẢNH BÁO: Xóa phiên chụp này sẽ xóa vĩnh viễn ảnh trên hệ thống!\nBạn có chắc chắn muốn xóa không?')) {
+      return
+    }
+    
+    try {
+      setRetryingId(image.id)
+      
+      // 1. Delete files from GCS
+      if (image.eventId && image.sessionId) {
+        await deleteSaasSessionFiles(image.eventId, image.sessionId).catch(err => {
+          console.warn('Could not delete GCS files, might be empty:', err)
+        })
+      }
+      
+      // 2. Delete from Supabase DB
+      await supabase.from('final_outputs').deleteById(image.id)
+      
+      // Update local state
+      setCloudItems(prev => prev.filter(item => item.id !== image.id))
+      setSelectedImage(null)
+      alert('Đã xóa phiên chụp thành công.')
+    } catch (err) {
+      console.error(err)
+      alert('Có lỗi xảy ra khi xóa phiên chụp: ' + err.message)
+    } finally {
+      setRetryingId(null)
+    }
+  }
+
   const downloadZip = async () => {
     if (!event || downloadingZip) return;
     if (galleryItems.length === 0) {
@@ -331,6 +364,19 @@ export function EventGalleryPage() {
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
+          <button
+            className="rounded-2xl bg-amber-50 px-5 py-3 font-bold text-amber-700 disabled:opacity-60"
+            onClick={async () => {
+              if (window.confirm("Bạn có chắc chắn muốn dọn dẹp bộ nhớ đệm (Cache) trên thiết bị này?\nCác ảnh đang chờ upload sẽ được giữ lại.")) {
+                await clearLocalCache();
+                alert("Đã dọn dẹp Cache thành công!");
+                loadGallery();
+              }
+            }}
+            type="button"
+          >
+            Dọn dẹp Cache
+          </button>
           <button
             className="rounded-2xl bg-purple-600 px-5 py-3 font-bold text-white disabled:opacity-60"
             disabled={downloadingZip}
@@ -446,13 +492,22 @@ export function EventGalleryPage() {
             </div>
             <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between border-b pb-4">
               <SyncStatusBadge status={selectedImage.status} />
-              <button
-                className="inline-flex items-center justify-center gap-2 rounded-2xl bg-purple-600 px-5 py-3 font-bold text-white"
-                onClick={() => downloadImage(selectedImage)}
-                type="button"
-              >
-                <Download size={18} /> Tải ảnh Final
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  className="inline-flex items-center justify-center gap-2 rounded-2xl bg-red-50 px-5 py-3 font-bold text-red-600 hover:bg-red-100 transition-colors"
+                  onClick={() => handleDeleteSession(selectedImage)}
+                  type="button"
+                >
+                  <Trash2 size={18} /> Xóa ảnh
+                </button>
+                <button
+                  className="inline-flex items-center justify-center gap-2 rounded-2xl bg-purple-600 px-5 py-3 font-bold text-white"
+                  onClick={() => downloadImage(selectedImage)}
+                  type="button"
+                >
+                  <Download size={18} /> Tải ảnh Final
+                </button>
+              </div>
             </div>
 
             {sessionDetails && sessionDetails.medias && (

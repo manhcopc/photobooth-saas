@@ -129,3 +129,25 @@ export const uploadFinalOutputToBackend = async (queueItem) => {
     thumbnailUrl: data.finalImageUrl, // We can use the same or let backend generate
   }
 }
+
+export const deleteSaasEventFiles = async (eventId) => {
+  const apiUrl = import.meta.env.VITE_API_URL
+  const response = await fetch(`${apiUrl}/api/sessions/saas/files/event/${eventId}`, {
+    method: 'DELETE',
+  })
+  if (!response.ok) {
+    throw new Error(`Failed to delete event files: ${response.status}`)
+  }
+  return response.json()
+}
+
+export const deleteSaasSessionFiles = async (eventId, sessionId) => {
+  const apiUrl = import.meta.env.VITE_API_URL
+  const response = await fetch(`${apiUrl}/api/sessions/saas/files/session/${eventId}/${sessionId}`, {
+    method: 'DELETE',
+  })
+  if (!response.ok) {
+    throw new Error(`Failed to delete session files: ${response.status}`)
+  }
+  return response.json()
+}

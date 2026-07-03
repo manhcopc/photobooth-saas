@@ -3,10 +3,13 @@ import { Link } from 'react-router-dom'
 import { EventCard } from '../../components/admin/EventCard'
 import { StatCard } from '../../components/admin/StatCard'
 import { getDashboardAnalytics } from '../../services/analyticsService'
+import { useUploadQueue } from '../../hooks/useUploadQueue'
+import { AlertCircle } from 'lucide-react'
 
 export function DashboardPage() {
   const [analytics, setAnalytics] = useState(null)
   const [error, setError] = useState('')
+  const { queue } = useUploadQueue()
 
   useEffect(() => {
     let mounted = true
@@ -32,8 +35,20 @@ export function DashboardPage() {
   const recentEvents = analytics?.recentEvents || []
   const topEvent = analytics?.topEvent
 
+  const failedUploads = queue.filter(item => item.status === 'failed').length
+  const pendingUploads = queue.filter(item => item.status === 'pending').length
+
   return (
     <div className="space-y-6">
+      {(failedUploads > 0 || pendingUploads > 10) && (
+        <div className="flex items-center gap-3 rounded-2xl bg-amber-50 p-4 text-amber-700 shadow-sm ring-1 ring-amber-200">
+          <AlertCircle className="shrink-0" />
+          <div>
+            <h3 className="font-bold">Cảnh báo đồng bộ dữ liệu</h3>
+            <p className="text-sm">Hiện có <b>{failedUploads}</b> ảnh bị lỗi và <b>{pendingUploads}</b> ảnh đang chờ tải lên mây. Hãy kiểm tra kết nối mạng của Kiosk.</p>
+          </div>
+        </div>
+      )}
       {error ? <p className="rounded-2xl bg-red-50 p-4 text-sm font-bold text-red-600">{error}</p> : null}
       <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         <StatCard helper="Supabase events" label="Tổng events" value={analytics?.totalEvents ?? 0} />

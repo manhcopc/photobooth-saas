@@ -1,6 +1,7 @@
 import { STORAGE_KEYS } from '../store/keys'
 import { readStorage, writeStorage } from '../utils/storage'
 import { uploadFinalOutputToBackend } from './finalOutputService'
+import { clearSession } from './photoStorage'
 
 export const UPLOAD_QUEUE_STATUSES = {
   pending: 'pending',
@@ -173,6 +174,12 @@ export const uploadQueueItem = async (id) => {
     }
     const successItem = await patchQueueItem(id, successPatch)
     await patchLocalOutput(queueItem.localOutputId, successPatch)
+    
+    // Auto-Cleanup: Xóa ảnh raw và video cục bộ khi upload thành công để giải phóng dung lượng
+    await clearSession({ eventId: queueItem.eventId, sessionId: queueItem.sessionId }).catch(err => {
+      console.error('Failed to cleanup session after upload:', err)
+    })
+
     return successItem
   } catch (error) {
     const retryCount = (queueItem.retryCount || 0) + 1
@@ -243,24 +250,37 @@ const recoverInterruptedUploads = async () => {
 export const processUploadQueue = async ({ eventId } = {}) => {
   if (processingQueue) return []
   if (typeof navigator !== 'undefined' && navigator.onLine === false) return []
-
   processingQueue = true
   try {
     await recoverInterruptedUploads()
     const queue = await getUploadQueue(eventId)
-    const itemsToUpload = queue
-      .filter((item) => [UPLOAD_QUEUE_STATUSES.pending, UPLOAD_QUEUE_STATUSES.failed].includes(item.status))
-      .sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt))
+    const pendingItems = queue.filter((item) => item.status === UPLOAD_QUEUE_STATUSES.pending)
     const results = []
-
-    for (const item of itemsToUpload) {
-      if (activeUploads.has(item.id)) continue
-      const result = await uploadQueueItem(item.id)
-      results.push(result)
+    for (const item of pendingItems) {
+      if (typeof navigator !== 'undefined' && navigator.onLine === false) break
+      try {
+        const result = await uploadQueueItem(item.id)
+        results.push(result)
+      } catch (error) {
+        console.error(`Upload failed for ${item.id}:`, error)
+      }
     }
-
+    if (results.length > 0) window.dispatchEvent(new Event(UPLOAD_QUEUE_UPDATED_EVENT))
     return results
   } finally {
     processingQueue = false
   }
+}
+
+export const clearLocalCache = async () => {
+  const queue = await getUploadQueue()
+  // Keep pending, uploading, and failed. Delete only success.
+  const keptQueue = queue.filter(item => item.status !== UPLOAD_QUEUE_STATUSES.success)
+  await writeQueue(keptQueue)
+
+  const outputs = await getLocalFinalOutputs()
+  const keptOutputs = outputs.filter(item => keptQueue.some(q => q.localOutputId === item.id))
+  await writeLocalOutputs(keptOutputs)
+  
+  window.dispatchEvent(new Event(UPLOAD_QUEUE_UPDATED_EVENT))
 }

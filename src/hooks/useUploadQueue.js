@@ -61,10 +61,18 @@ export function useUploadQueue({ eventId } = {}) {
     window.addEventListener('online', handleOnline)
     window.addEventListener('offline', handleOffline)
 
+    // Auto-Retry Background: Chạy mỗi phút 1 lần
+    const intervalId = setInterval(() => {
+      if (typeof navigator === 'undefined' || navigator.onLine !== false) {
+        processQueue()
+      }
+    }, 60000)
+
     return () => {
       window.removeEventListener(UPLOAD_QUEUE_UPDATED_EVENT, handleQueueUpdated)
       window.removeEventListener('online', handleOnline)
       window.removeEventListener('offline', handleOffline)
+      clearInterval(intervalId)
     }
   }, [processQueue, refreshQueue])
 
