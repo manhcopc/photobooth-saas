@@ -62,6 +62,12 @@ export const uploadFinalOutputToBackend = async (queueItem) => {
   if (queueItem.selectedFrameId) {
     formData.append('selectedFrameId', queueItem.selectedFrameId)
   }
+  if (queueItem.selectedFrameName) {
+    formData.append('selectedFrameName', queueItem.selectedFrameName)
+  }
+  if (queueItem.selectedFrameRenderMode) {
+    formData.append('selectedFrameRenderMode', queueItem.selectedFrameRenderMode)
+  }
   
   if (message) {
     formData.append('message', message)
