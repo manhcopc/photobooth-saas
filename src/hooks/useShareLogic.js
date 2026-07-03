@@ -10,6 +10,11 @@ export function useShareLogic() {
   const apiUrl = import.meta.env.VITE_API_URL
 
   useEffect(() => {
+    let retryCount = 0;
+    const maxRetries = 20; // Thử tối đa 20 lần (60 giây)
+    let timeoutId = null;
+    let isMounted = true;
+
     const fetchSession = async () => {
       try {
         const response = await fetch(`${apiUrl}/api/admin/sessions?page=1&limit=100`)
@@ -17,7 +22,7 @@ export function useShareLogic() {
           const data = await response.json()
           const session = data.data?.find(s => s.saasSessionId === sessionId || s.id === sessionId)
           if (session) {
-            setSessionData(session)
+            if (isMounted) setSessionData(session)
             
             const finalOutputsRes = await fetch(`${apiUrl}/api/admin/final-outputs?page=1&limit=100`)
             if (finalOutputsRes.ok) {
@@ -30,22 +35,43 @@ export function useShareLogic() {
                 if (event) {
                   const frames = await getFramesWithLegacyFallback(event)
                   const matchingFrame = frames.find(f => f.id === session.selectedFrame) || frames[0]
-                  setFrameData(matchingFrame)
+                  if (isMounted) setFrameData(matchingFrame)
                 }
               }
             }
-          } else {
-            setError('Không tìm thấy phiên chụp')
+            if (isMounted) {
+              setLoading(false)
+              setError('')
+            }
+            return // Thành công thì thoát luôn
           }
         }
       } catch (e) {
         console.error('Failed to fetch session', e)
-        setError('Lỗi kết nối')
-      } finally {
-        setLoading(false)
+      }
+
+      // Nếu không tìm thấy session (do Kiosk chưa kịp upload xong) hoặc lỗi mạng
+      if (retryCount < maxRetries) {
+        retryCount++;
+        if (isMounted) {
+          setError(`Đang đồng bộ dữ liệu từ máy Kiosk... (${retryCount}/${maxRetries})`)
+          setLoading(true) // Vẫn giữ trạng thái loading
+        }
+        timeoutId = setTimeout(fetchSession, 3000) // Đợi 3 giây rồi thử lại
+      } else {
+        if (isMounted) {
+          setError('Không tìm thấy phiên chụp. Quá thời gian chờ đồng bộ.')
+          setLoading(false)
+        }
       }
     }
+    
     fetchSession()
+
+    return () => {
+      isMounted = false;
+      if (timeoutId) clearTimeout(timeoutId)
+    }
   }, [sessionId])
 
   const downloadFile = async (url) => {

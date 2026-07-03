@@ -15,8 +15,9 @@ export function DesktopShareUI({
 }) {
   if (loading) {
     return (
-      <div className="flex h-screen w-full items-center justify-center bg-premium-bg text-premium-text">
+      <div className="flex flex-col h-screen w-full items-center justify-center bg-premium-bg gap-4">
         <div className="w-12 h-12 rounded-full border-4 border-premium-border border-t-premium-primary animate-spin" />
+        <p className="text-premium-primary font-bold">{error || 'Đang tải dữ liệu...'}</p>
       </div>
     )
   }

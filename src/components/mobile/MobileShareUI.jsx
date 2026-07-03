@@ -12,7 +12,16 @@ export function MobileShareUI({
   videoClips,
   downloadFile
 }) {
-  if (loading) return <div className="grid min-h-svh place-items-center p-6 font-bold text-purple-700">Đang tải dữ liệu...</div>
+  if (loading) {
+    return (
+      <div className="grid min-h-svh place-items-center p-6 text-center">
+        <div className="flex flex-col items-center gap-4">
+          <div className="h-10 w-10 animate-spin rounded-full border-4 border-purple-200 border-t-purple-700"></div>
+          <p className="font-bold text-purple-700">{error || 'Đang tải dữ liệu...'}</p>
+        </div>
+      </div>
+    )
+  }
   if (!sessionData) return <div className="grid min-h-svh place-items-center p-6 font-bold text-red-500">{error || 'Không tìm thấy dữ liệu phiên chụp.'}</div>
 
   return (
