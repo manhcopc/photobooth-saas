@@ -52,7 +52,7 @@ export const uploadFinalOutputToBackend = async (queueItem) => {
   ).filter(i => i !== -1)
 
   const finalPhotosToUpload = selectedIndices.map(i => photos[i]).filter(Boolean)
-  const finalVideosToUpload = selectedIndices.map(i => videoClips[i]).filter(Boolean)
+  // We no longer filter videos, we will upload ALL of them to the backend to concatenate.
 
   const formData = new FormData()
   formData.append('eventId', eventId)
@@ -88,8 +88,8 @@ export const uploadFinalOutputToBackend = async (queueItem) => {
     }
   })
 
-  // Append video clips
-  finalVideosToUpload.forEach((video, index) => {
+  // Append ALL video clips for recap concatenation
+  videoClips.forEach((video, index) => {
     if (video) {
       formData.append('videoClips', video, `video-${index}.webm`)
     }

@@ -76,6 +76,8 @@ export function useShareLogic() {
 
   const downloadFile = async (url) => {
     if (!url) return
+    if (!window.confirm('Bạn có chắc chắn muốn tải file này về máy?')) return;
+    
     try {
       const response = await fetch(url)
       const blob = await response.blob()
