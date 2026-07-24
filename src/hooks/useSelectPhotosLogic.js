@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useCurrentEvent } from './useCurrentEvent'
-import { getActiveSession, getCaptures, saveSelectedPhotos } from '../services/photoStorage'
+import { getActiveSession, getCaptures, saveSelectedPhotos, saveSelectedFrame } from '../services/photoStorage'
+import { getActiveFramesWithLegacyFallback } from '../services/eventFrameService'
 
 export function useSelectPhotosLogic() {
   const navigate = useNavigate()
@@ -10,6 +11,7 @@ export function useSelectPhotosLogic() {
   const [selected, setSelected] = useState([])
   const [sessionId, setSessionId] = useState(null)
   const [selectedFrame, setSelectedFrame] = useState(null)
+  const [frames, setFrames] = useState([])
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
 
@@ -24,15 +26,17 @@ export function useSelectPhotosLogic() {
         return
       }
 
-      const [storedPhotos, storedFrame] = await Promise.all([
+      const [storedPhotos, storedFrame, frameList] = await Promise.all([
         getCaptures({ eventId: event.id, sessionId: activeSessionId }),
-        import('../services/photoStorage').then(m => m.getSelectedFrame({ eventId: event.id, sessionId: activeSessionId }))
+        import('../services/photoStorage').then(m => m.getSelectedFrame({ eventId: event.id, sessionId: activeSessionId })),
+        getActiveFramesWithLegacyFallback(event)
       ])
       
       if (!mounted) return
       setSessionId(activeSessionId)
       setPhotos(storedPhotos)
-      setSelectedFrame(storedFrame)
+      setFrames(frameList)
+      setSelectedFrame(storedFrame || frameList[0])
       setLoading(false)
       if (storedPhotos.length < 6) navigate(`/e/${event.slug}/capture`)
     }
@@ -93,10 +97,19 @@ export function useSelectPhotosLogic() {
     setSelected([])
   }
 
+  const chooseFrame = async (frame) => {
+    if (!sessionId) return
+    setSelectedFrame(frame)
+    await saveSelectedFrame({ eventId: event.id, sessionId, frame })
+  }
+
   const continueToPreview = async () => {
     try {
       setSaving(true)
-      await saveSelectedPhotos({ eventId: event.id, sessionId, photos: selected })
+      await Promise.all([
+        saveSelectedPhotos({ eventId: event.id, sessionId, photos: selected }),
+        selectedFrame ? saveSelectedFrame({ eventId: event.id, sessionId, frame: selectedFrame }) : Promise.resolve()
+      ])
       navigate(`/e/${event.slug}/preview`)
     } catch (error) {
       console.error("SelectPhotosPage continueToPreview error:", error)
@@ -111,11 +124,13 @@ export function useSelectPhotosLogic() {
     eventLoading,
     photos,
     selected,
+    frames,
     selectedFrame,
     livePreviewUrl,
     loading,
     saving,
     toggle,
+    chooseFrame,
     continueToPreview,
     handleAutoSelect,
     handleClearSelection,

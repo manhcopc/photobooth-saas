@@ -2,6 +2,7 @@ import { Check, X, Wand2, ArrowRight } from 'lucide-react'
 import { motion } from 'framer-motion'
 import { EventNotFoundPage } from '../../pages/user/EventNotFoundPage'
 import { EventInactivePage } from '../../pages/user/EventInactivePage'
+import { getPhotoAspectRatio } from '../../utils/photoItems'
 
 export function DesktopSelectPhotosUI({
   event,
@@ -11,6 +12,9 @@ export function DesktopSelectPhotosUI({
   livePreviewUrl,
   loading,
   saving,
+  frames,
+  selectedFrame,
+  chooseFrame,
   toggle,
   continueToPreview,
   handleAutoSelect,
@@ -37,6 +41,7 @@ export function DesktopSelectPhotosUI({
             {photos.map((photo, index) => {
               const isSelected = selected.includes(photo)
               const selectedIndex = selected.indexOf(photo)
+              const aspectRatio = getPhotoAspectRatio(photo)
               
               return (
                 <motion.div 
@@ -44,14 +49,15 @@ export function DesktopSelectPhotosUI({
                   whileHover={{ scale: 1.02 }}
                   whileTap={{ scale: 0.98 }}
                   onClick={() => toggle(photo)}
-                  className={`relative cursor-pointer rounded-[2rem] overflow-hidden aspect-[3/4] border-4 transition-all duration-300 ${
+                  style={{ aspectRatio: `${aspectRatio}` }}
+                  className={`relative cursor-pointer rounded-[2rem] overflow-hidden border-4 transition-all duration-300 ${
                     isSelected ? 'border-premium-primary shadow-[0_0_30px_rgba(124,58,237,0.3)]' : 'border-transparent hover:border-premium-border bg-premium-card'
                   }`}
                 >
                   <img 
                     src={photo.photoDataUrl || photo.imageUrl} 
                     alt={`Capture ${index + 1}`} 
-                    className={`w-full h-full object-cover transition-transform duration-500 ${photo.mirror ? 'scale-x-[-1]' : ''} ${isSelected ? 'scale-105' : ''}`}
+                    className={`w-full h-full object-contain transition-transform duration-500 ${photo.mirror ? 'scale-x-[-1]' : ''} ${isSelected ? 'scale-105' : ''}`}
                   />
                   
                   {isSelected && (
@@ -101,6 +107,28 @@ export function DesktopSelectPhotosUI({
             </div>
           )}
         </div>
+
+        {/* Frame Selection */}
+        {frames && frames.length > 0 && (
+          <div className="mt-6 mb-2">
+            <h3 className="text-sm font-bold text-premium-text-muted mb-3 uppercase tracking-wider">Chọn khung ảnh</h3>
+            <div className="flex gap-3 overflow-x-auto pb-2 custom-scrollbar">
+              {frames.map((frame) => (
+                <button
+                  key={frame.id}
+                  onClick={() => chooseFrame(frame)}
+                  className={`relative flex-shrink-0 w-20 h-28 rounded-xl overflow-hidden border-2 transition-all ${
+                    selectedFrame?.id === frame.id 
+                      ? 'border-premium-primary shadow-[0_0_15px_rgba(124,58,237,0.4)] scale-105' 
+                      : 'border-premium-border/50 hover:border-premium-text/50 opacity-70 hover:opacity-100'
+                  }`}
+                >
+                  <img src={frame.overlayUrl} alt={frame.name} className="w-full h-full object-cover" />
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* Action Buttons */}
         <div className="pt-8 space-y-4">

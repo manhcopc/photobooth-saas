@@ -179,7 +179,7 @@ export function DesktopCaptureUI({
         <div className="flex-1 overflow-y-auto pr-2 custom-scrollbar space-y-4">
           <div className="grid grid-cols-2 gap-4">
             {Array.from({ length: TOTAL_PHOTOS }).map((_, idx) => (
-              <div key={idx} className="relative aspect-[3/4] rounded-xl overflow-hidden bg-premium-card border border-premium-border shadow-inner">
+              <div key={idx} className={`relative ${isPortrait ? 'aspect-[3/4]' : 'aspect-video'} rounded-xl overflow-hidden bg-premium-card border border-premium-border shadow-inner`}>
                 {photos[idx] ? (
                   <motion.div
                     initial={{ opacity: 0, scale: 0.8 }}

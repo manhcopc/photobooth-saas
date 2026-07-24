@@ -1,24 +1,63 @@
+@import url("https://fonts.googleapis.com/css2?family=Pacifico&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400..800&display=swap");
 @import "tailwindcss";
+
+/* Hướng dẫn thêm Font việt hóa tùy chỉnh (UVN, NVN, v.v.):
+1. Tải file font (.ttf hoặc .otf) về máy
+2. Đặt vào thư mục public/fonts/ (tạo thư mục nếu chưa có)
+3. Bỏ comment ở các đoạn code dưới đây và đổi lại tên file cho khớp: */
+
+@font-face {
+  font-family: "UVN Ke Chuyen 1";
+  src: url("/fonts/UVNKeChuyen1.TTF") format("truetype");
+  font-weight: normal;
+  font-style: normal;
+}
+@font-face {
+  font-family: "UVN Ke Chuyen 2";
+  src: url("/fonts/UVNKeChuyen2.TTF") format("truetype");
+  font-weight: normal;
+  font-style: normal;
+}
+@font-face {
+  font-family: "UVN Ke Chuyen 3";
+  src: url("/fonts/UVNKeChuyen3.TTF") format("truetype");
+  font-weight: normal;
+  font-style: normal;
+}
+@font-face {
+  font-family: "UVN Nguyen Du";
+  src: url("/fonts/UVNNguyenDu.ttf") format("truetype");
+  font-weight: normal;
+  font-style: normal;
+}
+@font-face {
+  font-family: "NVN January";
+  src: url("/fonts/NVNJanuary.ttf") format("truetype");
+  font-weight: normal;
+  font-style: normal;
+}
 
 @theme {
   --color-premium-bg: #020617;
-  --color-premium-surface: #0F172A;
+  --color-premium-surface: #0f172a;
   --color-premium-card: #111827;
   --color-premium-border: rgba(255, 255, 255, 0.08);
-  --color-premium-primary: #7C3AED;
-  --color-premium-secondary: #EC4899;
-  --color-premium-accent: #06B6D4;
-  --color-premium-success: #10B981;
-  --color-premium-danger: #EF4444;
-  --color-premium-warning: #F59E0B;
-  --color-premium-text: #F8FAFC;
-  --color-premium-text-muted: #94A3B8;
+  --color-premium-primary: #7c3aed;
+  --color-premium-secondary: #ec4899;
+  --color-premium-accent: #06b6d4;
+  --color-premium-success: #10b981;
+  --color-premium-danger: #ef4444;
+  --color-premium-warning: #f59e0b;
+  --color-premium-text: #f8fafc;
+  --color-premium-text-muted: #94a3b8;
 }
 
 :root {
   color: #0f172a;
   background: #fdf2f8;
-  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system,
+    BlinkMacSystemFont, "Segoe UI", sans-serif;
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;

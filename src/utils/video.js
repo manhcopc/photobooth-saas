@@ -48,7 +48,7 @@ const safeLoadImage = (src) =>
     image.src = src
   })
 
-export const composeFinalVideo = async (videoBlobs, frameOrLayout) => {
+export const composeFinalVideo = async (videoBlobs, frameOrLayout, options = {}) => {
   if (!videoBlobs || videoBlobs.length === 0) {
     throw new Error('No videos provided')
   }
@@ -154,6 +154,20 @@ export const composeFinalVideo = async (videoBlobs, frameOrLayout) => {
 
       // Draw overlay
       if (overlay) context.drawImage(overlay, 0, 0, canvas.width, canvas.height)
+
+      if (options.message && layoutConfig.textBox) {
+        const tb = layoutConfig.textBox;
+        context.fillStyle = tb.color || '#000000'
+        context.font = `${tb.fontSize || 40}px ${tb.fontFamily || 'Arial'}`
+        context.textAlign = tb.align || 'center'
+        context.textBaseline = 'middle'
+        
+        let textX = tb.x;
+        if (context.textAlign === 'center') textX += tb.width / 2;
+        if (context.textAlign === 'right') textX += tb.width;
+        
+        context.fillText(options.message, textX, tb.y + tb.height / 2)
+      }
 
       if (elapsed < maxDuration) {
         animationId = requestAnimationFrame(drawFrame)

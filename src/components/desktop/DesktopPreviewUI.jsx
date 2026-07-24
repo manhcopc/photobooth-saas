@@ -17,7 +17,6 @@ export function DesktopPreviewUI({
   uploadStatus,
   uploadError,
   queuedOutputId,
-  frames,
   selectedFrame,
   frameError,
   composedVideoBlob,
@@ -27,7 +26,6 @@ export function DesktopPreviewUI({
   setViewMode,
   finish,
   retryUpload,
-  chooseFrame,
   handleMessageChange,
   clearSignature
 }) {
@@ -46,54 +44,6 @@ export function DesktopPreviewUI({
   return (
     <div className="flex h-screen w-full bg-premium-bg text-premium-text overflow-hidden font-sans">
       
-      {/* LEFT PANEL - FRAME SELECTION */}
-      <div className="w-[380px] border-r border-premium-border bg-premium-surface/50 backdrop-blur-xl flex flex-col z-10 shadow-2xl">
-        <div className="p-8 pb-4">
-          <h2 className="text-2xl font-black mb-2">Chọn Khung Ảnh</h2>
-          <p className="text-sm text-premium-text-muted">Chọn thiết kế phù hợp với phong cách của bạn</p>
-        </div>
-        
-        {frameError && (
-          <div className="mx-8 p-4 rounded-xl bg-premium-danger/10 border border-premium-danger/20 mb-4">
-            <p className="text-sm text-premium-danger">{frameError}</p>
-          </div>
-        )}
-
-        <div className="flex-1 overflow-y-auto custom-scrollbar px-8 pb-8">
-          <div className="grid grid-cols-2 gap-4">
-            {frames.map((frame) => {
-              const isSelected = selectedFrame?.id === frame.id;
-              return (
-                <motion.button
-                  key={frame.id}
-                  whileHover={{ scale: 1.03 }}
-                  whileTap={{ scale: 0.98 }}
-                  onClick={() => chooseFrame(frame)}
-                  className={`relative rounded-2xl overflow-hidden aspect-[2/3] border-2 transition-all duration-300 text-left group bg-premium-card ${
-                    isSelected ? 'border-premium-primary shadow-[0_0_20px_rgba(124,58,237,0.3)]' : 'border-premium-border/50 hover:border-premium-border'
-                  }`}
-                >
-                  <img 
-                    alt={frame.name} 
-                    className="w-full h-full object-cover opacity-80 group-hover:opacity-100 transition-opacity" 
-                    src={frame.previewUrl || frame.frameUrl} 
-                  />
-                  <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 to-transparent p-3 pt-8">
-                    <p className="text-xs font-bold text-white truncate">{frame.name}</p>
-                    {frame.isDefault && <p className="text-[10px] text-premium-primary">Mặc định</p>}
-                  </div>
-                  {isSelected && (
-                    <div className="absolute top-2 right-2 w-6 h-6 bg-premium-primary rounded-full flex items-center justify-center shadow-lg">
-                      <Check size={14} className="text-white" />
-                    </div>
-                  )}
-                </motion.button>
-              )
-            })}
-          </div>
-        </div>
-      </div>
-
       {/* CENTER PANEL - FINAL RESULT PREVIEW */}
       <div className="flex-1 relative flex flex-col items-center justify-center p-8 bg-black/20">
         <div className="flex items-center gap-2 mb-6 bg-premium-card/50 p-1 rounded-full backdrop-blur-md border border-premium-border">
@@ -115,7 +65,7 @@ export function DesktopPreviewUI({
           </button>
         </div>
 
-        <div className="relative w-full max-w-[600px] aspect-[2/3] max-h-[80vh] flex items-center justify-center">
+        <div className="relative w-full max-w-[600px] h-[80vh] flex items-center justify-center">
           <AnimatePresence mode="wait">
             {viewMode === 'photo' && finalImageUrl ? (
               <motion.img 

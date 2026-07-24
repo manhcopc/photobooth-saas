@@ -18,7 +18,6 @@ export function MobilePreviewUI({
   uploadStatus,
   uploadError,
   queuedOutputId,
-  frames,
   selectedFrame,
   frameError,
   composedVideoBlob,
@@ -28,7 +27,6 @@ export function MobilePreviewUI({
   setViewMode,
   finish,
   retryUpload,
-  chooseFrame,
   handleMessageChange,
   clearSignature
 }) {
@@ -67,7 +65,7 @@ export function MobilePreviewUI({
 
         <div className="mt-2 overflow-hidden rounded-[2rem] bg-purple-50 p-3 shadow-inner">
           {loading ? <div className="grid aspect-[2/3] place-items-center text-purple-700"><WandSparkles className="animate-pulse" size={48} /></div> : null}
-          {!loading && finalImageUrl && viewMode === 'photo' ? <img alt="Ảnh photobooth cuối" className="aspect-[2/3] w-full rounded-[1.5rem] object-cover" src={finalImageUrl} /> : null}
+          {!loading && finalImageUrl && viewMode === 'photo' ? <img alt="Ảnh photobooth cuối" className="w-full h-auto rounded-[1.5rem] object-contain" src={finalImageUrl} /> : null}
           {!loading && finalImageUrl && viewMode === 'video' ? (
             <div className="rounded-[1.5rem] overflow-hidden">
               {composedVideoBlob ? (
@@ -77,7 +75,7 @@ export function MobilePreviewUI({
                   autoPlay 
                   loop 
                   playsInline 
-                  className="aspect-[2/3] w-full bg-slate-100 object-cover" 
+                  className="w-full h-auto bg-slate-100 object-contain" 
                 />
               ) : (
                 <VideoRecapPreview videos={videoClips.map((v) => v.url || v)} frameOrLayout={selectedFrame || event.layoutConfig} />
@@ -87,19 +85,7 @@ export function MobilePreviewUI({
           {!loading && !finalImageUrl ? <div className="grid aspect-[2/3] place-items-center rounded-[1.5rem] text-sm font-bold text-slate-500">Chưa có preview</div> : null}
         </div>
 
-        {frames.length > 1 ? (
-          <div className="mt-4 text-left">
-            <p className="mb-2 font-black text-slate-900">Chọn khung ảnh</p>
-            <div className="grid grid-cols-2 gap-2">
-              {frames.map((frame) => (
-                <button className={`rounded-xl border p-2 text-left ${selectedFrame?.id === frame.id ? 'border-purple-600 ring-2 ring-purple-300' : 'border-slate-200'}`} key={frame.id} onClick={() => chooseFrame(frame)} type="button">
-                  <img alt={frame.name} className="aspect-[2/3] w-full rounded-lg object-cover" src={frame.previewUrl || frame.frameUrl} />
-                  <p className="mt-1 text-xs font-bold">{frame.name} {frame.isDefault ? '• Khung mặc định' : ''}</p>
-                </button>
-              ))}
-            </div>
-          </div>
-        ) : null}
+
 
         <div className="mt-6 text-left">
           <p className="mb-2 font-black text-slate-900">Lời chúc (Tối đa 10 chữ)</p>

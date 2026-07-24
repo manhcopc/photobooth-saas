@@ -7,7 +7,6 @@ import { optimizeFinalCanvas } from '../utils/imageOptimization'
 import { getActiveSession, getSelectedFrame, getSelectedPhotos, saveCameraSettings, saveSelectedFrame, saveSignature, saveMessage, getVideoClips } from '../services/photoStorage'
 import { useUploadQueue } from './useUploadQueue'
 import { enqueueFinalOutput } from '../services/uploadQueueService'
-import { getActiveFramesWithLegacyFallback } from '../services/eventFrameService'
 
 export function usePreviewLogic() {
   const navigate = useNavigate()
@@ -22,7 +21,6 @@ export function usePreviewLogic() {
   const [uploadStatus, setUploadStatus] = useState('idle')
   const [uploadError, setUploadError] = useState('')
   const [queuedOutputId, setQueuedOutputId] = useState(null)
-  const [frames, setFrames] = useState([])
   const [selectedFrame, setSelectedFrame] = useState(null)
   const [frameError, setFrameError] = useState('')
   const [composedVideoBlob, setComposedVideoBlob] = useState(null)
@@ -55,16 +53,9 @@ export function usePreviewLogic() {
         return
       }
 
-      const frameList = await getActiveFramesWithLegacyFallback(event)
-      if (frameList.length === 0) {
-        if (!mounted) return
-        setFrameError('Sự kiện chưa có khung ảnh khả dụng.')
-        setLoading(false)
-        return
-      }
       const storedFrame = await getSelectedFrame({ eventId: event.id, sessionId: activeSessionId })
-      const initialFrame = frameList.find((f) => f.id === storedFrame?.id) || frameList.find((f) => f.isDefault) || frameList[0]
-      const canvas = await composeFinalCanvas(photos, initialFrame || event.layoutConfig)
+      const initialFrame = storedFrame || event.layoutConfig
+      const canvas = await composeFinalCanvas(photos, initialFrame)
       const optimized = await optimizeFinalCanvas(canvas)
       canvas.width = 0
       canvas.height = 0
@@ -73,7 +64,7 @@ export function usePreviewLogic() {
       let composedBlob = null
       try {
         if (clips && clips.length > 0) {
-          const videoResult = await composeFinalVideo(clips, initialFrame || event.layoutConfig)
+          const videoResult = await composeFinalVideo(clips, initialFrame)
           composedBlob = videoResult.blob
         }
       } catch (err) {
@@ -83,7 +74,6 @@ export function usePreviewLogic() {
       if (!mounted) return
       previewUrl = URL.createObjectURL(optimized.finalBlob)
       setSessionId(activeSessionId)
-      setFrames(frameList)
       setSelectedFrame(initialFrame)
       setOptimizedImage(optimized)
       setComposedVideoBlob(composedBlob)
@@ -112,7 +102,28 @@ export function usePreviewLogic() {
         saveMessage({ eventId: event.id, sessionId, message: customMessage })
       ]);
 
-      const queuedOutput = await enqueueFinalOutput({ event, sessionId, optimizedImage, selectedFrame, composedVideoBlob })
+      let finalOptImage = optimizedImage;
+      let finalVidBlob = composedVideoBlob;
+      const frame = selectedFrame || event.layoutConfig;
+
+      if (customMessage && frame?.layoutConfig?.textBox) {
+        const photos = await getSelectedPhotos({ eventId: event.id, sessionId });
+        const canvas = await composeFinalCanvas(photos, frame, { message: customMessage });
+        finalOptImage = await optimizeFinalCanvas(canvas);
+        canvas.width = 0; canvas.height = 0;
+
+        try {
+          const clips = await getVideoClips({ eventId: event.id, sessionId });
+          if (clips && clips.length > 0) {
+            const videoResult = await composeFinalVideo(clips, frame, { message: customMessage });
+            finalVidBlob = videoResult.blob;
+          }
+        } catch(err) {
+          console.error('Failed to recompose video with message', err);
+        }
+      }
+
+      const queuedOutput = await enqueueFinalOutput({ event, sessionId, optimizedImage: finalOptImage, selectedFrame, composedVideoBlob: finalVidBlob })
       setQueuedOutputId(queuedOutput.id)
       
       processQueue().catch(err => console.error("Background upload error:", err))
@@ -145,24 +156,6 @@ export function usePreviewLogic() {
     setUploadError(result.errorMessage || 'Upload thất bại. Ảnh đã được giữ trong queue để thử lại.')
   }
 
-  const chooseFrame = async (frame) => {
-    if (!event || !sessionId) return
-    const photos = await getSelectedPhotos({ eventId: event.id, sessionId })
-    const canvas = await composeFinalCanvas(photos, frame || event.layoutConfig)
-    const optimized = await optimizeFinalCanvas(canvas)
-    canvas.width = 0
-    canvas.height = 0
-    if (finalImageUrl) URL.revokeObjectURL(finalImageUrl)
-    const nextUrl = URL.createObjectURL(optimized.finalBlob)
-    setSelectedFrame(frame)
-    setOptimizedImage(optimized)
-    setFinalImageUrl(nextUrl)
-    await Promise.all([
-      saveSelectedFrame({ eventId: event.id, sessionId, frame }),
-      saveCameraSettings({ eventId: event.id, sessionId, cameraFacing: frame.preferredCameraFacing || 'user', captureOrientation: frame.preferredOrientation || 'portrait' }),
-    ])
-  }
-
   const handleMessageChange = (e) => {
     const val = e.target.value;
     const wordCount = val.trim().split(/\s+/).filter(Boolean).length;
@@ -192,7 +185,6 @@ export function usePreviewLogic() {
     uploadStatus,
     uploadError,
     queuedOutputId,
-    frames,
     selectedFrame,
     frameError,
     composedVideoBlob,
@@ -202,7 +194,6 @@ export function usePreviewLogic() {
     setViewMode,
     finish,
     retryUpload,
-    chooseFrame,
     handleMessageChange,
     clearSignature
   }
