@@ -82,11 +82,14 @@ export const uploadFinalOutputToBackend = async (queueItem) => {
   }
 
   // Append raw photos
-  finalPhotosToUpload.forEach((photo, index) => {
-    if (photo && photo.blob) {
-      formData.append('photos', photo.blob, `photo-${index}.webp`)
+  await Promise.all(photos.map(async (photo, index) => {
+    if (photo) {
+      const blob = photo.blob || (photo.photoDataUrl || photo.imageUrl ? await dataUrlToBlob(photo.photoDataUrl || photo.imageUrl) : null)
+      if (blob) {
+        formData.append('photos', blob, `photo-${index}.webp`)
+      }
     }
-  })
+  }))
 
   // Append ALL video clips for recap concatenation
   videoClips.forEach((video, index) => {

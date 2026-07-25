@@ -71,7 +71,7 @@ export function MobileShareUI({
             <div className="grid grid-cols-2 gap-4">
               {videoClips.map((url, i) => (
                 <div key={i} className="overflow-hidden rounded-[1.5rem] bg-white p-2 shadow-sm">
-                  <video src={url} controls className="w-full rounded-xl object-cover aspect-[2/3] bg-black" />
+                  <video src={url} controls className="w-full h-auto rounded-xl bg-black" />
                   <button 
                     onClick={() => downloadFile(url)}
                     className="mt-2 flex w-full items-center justify-center gap-2 rounded-lg bg-slate-100 py-2 text-xs font-bold text-slate-700 transition-colors hover:bg-slate-200"
@@ -90,7 +90,7 @@ export function MobileShareUI({
             <div className="grid grid-cols-2 gap-4">
               {originalPhotos.map((url, i) => (
                 <div key={i} className="overflow-hidden rounded-[1.5rem] bg-white p-2 shadow-sm">
-                  <img src={url} alt={`Original ${i+1}`} className="w-full rounded-xl object-cover aspect-[2/3]" />
+                  <img src={url} alt={`Original ${i+1}`} className="w-full h-auto rounded-xl object-contain" />
                   <button 
                     onClick={() => downloadFile(url)}
                     className="mt-2 flex w-full items-center justify-center gap-2 rounded-lg bg-slate-100 py-2 text-xs font-bold text-slate-700 transition-colors hover:bg-slate-200"

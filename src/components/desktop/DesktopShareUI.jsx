@@ -107,9 +107,9 @@ export function DesktopShareUI({
                       initial={{ opacity: 0, scale: 0.9 }}
                       animate={{ opacity: 1, scale: 1 }}
                       transition={{ delay: 0.1 * i }}
-                      className="group relative rounded-[1.5rem] overflow-hidden bg-premium-card border border-premium-border aspect-[3/4]"
+                      className="group relative rounded-[1.5rem] overflow-hidden bg-premium-card border border-premium-border"
                     >
-                      <img src={url} alt={`Original ${i+1}`} className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" />
+                      <img src={url} alt={`Original ${i+1}`} className="w-full h-auto object-cover transition-transform duration-500 group-hover:scale-105" />
                       <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center backdrop-blur-sm">
                         <button 
                           onClick={() => downloadFile(url)}

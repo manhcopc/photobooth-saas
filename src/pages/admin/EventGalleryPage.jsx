@@ -588,7 +588,7 @@ export function EventGalleryPage() {
                             <video
                               src={media.url}
                               controls
-                              className="w-full aspect-[2/3] object-cover rounded-xl bg-black mb-2"
+                              className="w-full h-auto object-contain rounded-xl bg-black mb-2"
                             />
                             <button
                               onClick={() =>
@@ -624,7 +624,7 @@ export function EventGalleryPage() {
                             <img
                               src={media.url}
                               alt={`Original ${i + 1}`}
-                              className="w-full aspect-[2/3] object-cover rounded-xl mb-2"
+                              className="w-full h-auto object-contain rounded-xl mb-2"
                             />
                             <button
                               onClick={() =>
