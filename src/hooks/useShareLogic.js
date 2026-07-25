@@ -76,16 +76,35 @@ export function useShareLogic() {
 
   const downloadFile = async (url) => {
     if (!url) return
-    if (!window.confirm('Bạn có chắc chắn muốn tải file này về máy?')) return;
     
     try {
       const response = await fetch(url)
       const blob = await response.blob()
+      
+      const isVideo = url.includes('.mp4') || url.includes('.webm') || blob.type.includes('video')
+      const fileName = `photobooth-${Date.now()}${isVideo ? '.mp4' : '.jpg'}`
+      
+      // Try Web Share API first (Best for iOS/Android to save to Photos)
+      if (navigator.canShare) {
+        const file = new File([blob], fileName, { type: blob.type })
+        if (navigator.canShare({ files: [file] })) {
+          try {
+            await navigator.share({
+              files: [file],
+            })
+            return // Successfully shared/saved
+          } catch (shareError) {
+            // If user cancelled, just return. Otherwise, fallback to download
+            if (shareError.name === 'AbortError') return
+          }
+        }
+      }
+
+      // Fallback to standard download
       const objectUrl = window.URL.createObjectURL(blob)
       const link = document.createElement('a')
       link.href = objectUrl
-      const isVideo = url.includes('.mp4') || url.includes('.webm') || blob.type.includes('video')
-      link.download = `photobooth-${Date.now()}${isVideo ? '.mp4' : '.webp'}`
+      link.download = fileName
       document.body.appendChild(link)
       link.click()
       document.body.removeChild(link)
